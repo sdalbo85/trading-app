@@ -37,6 +37,7 @@ st.sidebar.header("⚙️ Configurazione Watchlist")
 default_tickers = "NVDA, AMD, TSM, AAPL, MSFT, AMZN, GOOGL, META, TSLA, RACE.MI, SPY, SMH"
 watchlist_input = st.sidebar.text_area("Inserisci la tua Watchlist (separata da virgola):", value=default_tickers, height=120)
 
+# Pulisce e aggiorna dinamicamente la lista dei ticker
 ticker_list = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
 period = st.sidebar.selectbox("Periodo Storico:", ["6m", "1y", "2y", "5y"], index=1)
@@ -76,7 +77,6 @@ with tab1:
                 elif last_row['Signal'] == 'SELL':
                     status = "🔴 VENDI / FUORI"
                 
-                # Calcolo posizione
                 eff_price = last_row['Close'] + estimated_spread
                 max_risk = capital * (risk_per_trade_pct / 100.0)
                 loss_per_sh = eff_price * (stop_loss_pct / 100.0)
@@ -100,7 +100,6 @@ with tab1:
     if results:
         res_df = pd.DataFrame(results)
         
-        # Evidenzia segnali di acquisto
         st.dataframe(
             res_df.style.map(
                 lambda v: 'background-color: #1e4620; color: white' if 'COMPRA' in str(v) else ('background-color: #4a1c1d; color: white' if 'VENDI' in str(v) else ''),
@@ -120,31 +119,54 @@ with tab1:
 # TAB 2: DETTAGLIO SINGOLO TITOLO
 # ---------------------------------------------------------
 with tab2:
-    selected_ticker = st.selectbox("Seleziona Titolo da analizzare nel dettaglio:", ticker_list)
+    st.subheader("Analisi Grafica del Titolo")
     
-    if selected_ticker:
-        data = yf.download(selected_ticker, period=period, interval="1d", progress=False)
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-            
-        if not data.empty:
-            df = generate_signals(data)
-            last_row = df.iloc[-1]
-            
-            st.metric("Prezzo Attuale", f"{last_row['Close']:.2f} $", delta=last_row['Signal'])
-            
-            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
-            fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Candele"), row=1, col=1)
-            fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], line=dict(color='orange', width=1.5), name="SMA 50g"), row=1, col=1)
-            
-            buy_signals = df[df['Signal'] == 'BUY']
-            fig.add_trace(go.Scatter(x=buy_signals.index, y=buy_signals['Low'] * 0.98, mode='markers', marker=dict(symbol='triangle-up', size=12, color='green'), name="Compra"), row=1, col=1)
-            
-            sell_signals = df[df['Signal'] == 'SELL']
-            fig.add_trace(go.Scatter(x=sell_signals.index, y=sell_signals['High'] * 1.02, mode='markers', marker=dict(symbol='triangle-down', size=12, color='red'), name="Vendi"), row=1, col=1)
-            
-            fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='purple', width=1.5), name="RSI"), row=2, col=1)
-            fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-            fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
-            
-            st.plotly_chart(fig, use_container_width=True)
+    col_sel, col_manual = st.columns([2, 1])
+    with col_sel:
+        selected_ticker = st.selectbox("Seleziona dalla tua Watchlist:", options=ticker_list, index=0)
+    with col_manual:
+        manual_ticker = st.text_input("Oppure digita un Ticker manuale:", value="").upper().strip()
+    
+    # Usa il ticker manuale se inserito, altrimenti quello selezionato dal menu
+    active_ticker = manual_ticker if manual_ticker else selected_ticker
+
+    if active_ticker:
+        with st.spinner(f"Caricamento grafico per {active_ticker}..."):
+            data = yf.download(active_ticker, period=period, interval="1d", progress=False)
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
+                
+            if not data.empty:
+                df = generate_signals(data)
+                last_row = df.iloc[-1]
+                
+                c_m1, c_m2, c_m3 = st.columns(3)
+                c_m1.metric("Titolo", active_ticker)
+                c_m2.metric("Prezzo Attuale", f"{last_row['Close']:.2f} $")
+                
+                sig_label = "⚪ ATTENDI (HOLD)"
+                if last_row['Signal'] == 'BUY':
+                    sig_label = "🟢 COMPRA ORA"
+                elif last_row['Signal'] == 'SELL':
+                    sig_label = "🔴 VENDI / FUORI"
+                c_m3.metric("Decisione Algoritmo", sig_label)
+                
+                fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+                fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Candele"), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df.index, y=df['SMA_20'], line=dict(color='blue', width=1), name="SMA 20g"), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df.index, y=df['SMA_50'], line=dict(color='orange', width=1.5), name="SMA 50g"), row=1, col=1)
+                
+                buy_signals = df[df['Signal'] == 'BUY']
+                fig.add_trace(go.Scatter(x=buy_signals.index, y=buy_signals['Low'] * 0.98, mode='markers', marker=dict(symbol='triangle-up', size=12, color='green'), name="Compra"), row=1, col=1)
+                
+                sell_signals = df[df['Signal'] == 'SELL']
+                fig.add_trace(go.Scatter(x=sell_signals.index, y=sell_signals['High'] * 1.02, mode='markers', marker=dict(symbol='triangle-down', size=12, color='red'), name="Vendi"), row=1, col=1)
+                
+                fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='purple', width=1.5), name="RSI"), row=2, col=1)
+                fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+                fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+                fig.update_layout(xaxis_rangeslider_visible=False, height=500, margin=dict(l=20, r=20, t=20, b=20))
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.error(f"Nessun dato trovato per '{active_ticker}'. Verificare il codice ticker.")
