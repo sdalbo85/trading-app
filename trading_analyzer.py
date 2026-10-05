@@ -34,7 +34,7 @@ def generate_signals(df):
 st.title("📈 Screener e Analizzatore di Borsa Multi-Titolo")
 
 st.sidebar.header("⚙️ Configurazione Watchlist")
-default_tickers = "NVDA, AMD, TSM, AAPL, MSFT, AMZN, GOOGL, META, TSLA, RACE.MI, SPY, SMH"
+default_tickers = "ANET,CSCO,MRVL,CRDO,CEG,VST,VRT,SU,EQUIX,BYD,NOVO-B"
 watchlist_input = st.sidebar.text_area("Inserisci la tua Watchlist (separata da virgola):", value=default_tickers, height=120)
 
 # Pulisce la lista dei ticker
