@@ -10,13 +10,8 @@ TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4H0wwgy18byQ6swNSo-XxLJY"
 TELEGRAM_CHAT_ID = "8821873237"
 
 def send_telegram_alert(message):
-    """Invia un messaggio formattato al bot Telegram e mostra l'errore reale se fallisce."""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
         response = requests.post(url, json=payload, timeout=10)
         res_data = response.json()
@@ -31,7 +26,6 @@ def send_telegram_alert(message):
 # 2. FUNZIONI CALCOLO INDICATORI
 # ==========================================
 def calculate_rsi(data, period=14):
-    """Calcola l'RSI a 14 periodi."""
     delta = data.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
@@ -39,25 +33,27 @@ def calculate_rsi(data, period=14):
     return 100 - (100 / (1 + rs))
 
 def analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio):
-    """Scarica i dati ed esegue l'analisi del segnale e della gestione rischio."""
     try:
         df = yf.download(ticker, period="1y", interval="1d", progress=False)
         if df.empty:
             return None
         
-        # Gestione colonne MultiIndex di yfinance
         if isinstance(df.columns, pd.MultiIndex):
             df = df.xs(ticker, axis=1, level=1)
 
         close = df['Close']
+        volume = df['Volume']
+
         sma_50 = close.rolling(window=50).mean()
+        vol_sma_20 = volume.rolling(window=20).mean()
         rsi = calculate_rsi(close, period=14)
 
         current_price = float(close.iloc[-1])
         current_sma = float(sma_50.iloc[-1])
         current_rsi = float(rsi.iloc[-1])
+        current_vol = float(volume.iloc[-1])
+        avg_vol = float(vol_sma_20.iloc[-1])
 
-        # Logica del Segnale con Icone Colorate
         if current_price > current_sma and current_rsi < 45:
             decision = "🟢 COMPRA"
         elif current_rsi > 70 or current_price < current_sma:
@@ -65,7 +61,6 @@ def analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio):
         else:
             decision = "⚪ ATTENDI"
 
-        # Calcolo Gestione Rischio (solo se COMPRA)
         if decision == "🟢 COMPRA":
             max_risk_amount = capital * (max_risk_pct / 100.0)
             sl_target = current_price * (1 - (stop_loss_pct / 100.0))
@@ -86,6 +81,7 @@ def analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio):
             "Prezzo ($/€)": current_price,
             "Decisione Algoritmo": decision,
             "RSI (14)": current_rsi,
+            "Forza Volumi": "🔥 Alti" if current_vol > avg_vol else "❄️ Normali",
             "Sopra SMA50": "Sì" if current_price > current_sma else "No",
             "Azioni Consigliate": shares,
             "Stop Loss Target ($)": sl_target,
@@ -115,7 +111,6 @@ max_risk_pct = st.sidebar.slider("Rischio Max (%):", 0.5, 5.0, 2.0, 0.1)
 stop_loss_pct = st.sidebar.slider("Stop Loss (%):", 1.0, 10.0, 3.0, 0.5)
 rr_ratio = st.sidebar.slider("Rapporto Risk/Reward (es. 1:2 o 1:3):", 1.0, 5.0, 2.0, 0.5)
 
-# Box azzurro Target Take Profit
 calculated_tp = stop_loss_pct * rr_ratio
 st.sidebar.info(f"🎯 **Target Take Profit:** +{calculated_tp:.1f}% dal prezzo di acquisto")
 
@@ -129,10 +124,9 @@ if st.sidebar.button("Testa Notifica Telegram"):
     else:
         st.sidebar.error(f"Errore Telegram: {error_msg}")
 
-# --- SCANNER PRINCIPALE (CARICAMENTO AUTOMATICO) ---
+# --- SCANNER PRINCIPALE ---
 tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
-# Pulsante per aggiornare manualmente se necessario
 st.button("🔄 Aggiorna Dati Watchlist")
 
 with st.spinner("Caricamento dati di mercato in corso..."):
@@ -154,4 +148,4 @@ with st.spinner("Caricamento dati di mercato in corso..."):
         if buy_signals:
             st.success(f"Trovati {len(buy_signals)} segnali COMPRA!")
         else:
-            st.warning("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento. L'algoritmo consiglia di attendere.")
+            st.warning("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento.")
