@@ -6,7 +6,7 @@ import requests
 # ==========================================
 # 1. CONFIGURAZIONE TELEGRAM
 # ==========================================
-TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4H0wwgy18byQ6swNSo-XxLJY"
+TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY"
 TELEGRAM_CHAT_ID = "8821873237"
 
 def send_telegram_alert(message):
