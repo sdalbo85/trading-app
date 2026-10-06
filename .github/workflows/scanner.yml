@@ -1,0 +1,26 @@
+name: Automatic Market Scanner
+
+on:
+  schedule:
+    # Esegue ogni ora dal lunedi al venerdi tra le 13:00 e le 21:00 UTC (orario borsa USA)
+    - cron: '0 13-21 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install yfinance pandas requests
+
+      - name: Run Scanner
+        run: python auto_scanner.py
