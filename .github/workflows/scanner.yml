@@ -2,8 +2,8 @@ name: Automatic Market Scanner
 
 on:
   schedule:
-    # Esegue ogni ora dal lunedi al venerdi tra le 13:00 e le 21:00 UTC (orario borsa USA)
-    - cron: '0 13-21 * * 1-5'
+    # Esegue ogni ora dal lunedì al venerdì dalle 08:00 alle 22:00 italiane (06:00 - 20:00 UTC)
+    - cron: '0 6-20 * * 1-5'
   workflow_dispatch:
 
 jobs:
