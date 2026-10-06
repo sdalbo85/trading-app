@@ -6,7 +6,7 @@ import requests
 # ==========================================
 # 1. CONFIGURAZIONE TELEGRAM
 # ==========================================
-TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY"
+TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4H0wwgy18byQ6swNSo-XxLJY"
 TELEGRAM_CHAT_ID = "8821873237"
 
 def send_telegram_alert(message):
@@ -103,7 +103,7 @@ st.set_page_config(page_title="Screener & Analizzatore Borsa", layout="wide")
 st.title("📈 Screener e Analizzatore di Borsa Multi-Titolo")
 
 # --- SIDEBAR: PARAMETRI ---
-st.sidebar.header("⚙️️ Gestione Rischio & Guadagno")
+st.sidebar.header("⚙️ Gestione Rischio & Guadagno")
 
 watchlist_input = st.sidebar.text_area(
     "Inserisci la Watchlist (separata da virgola):",
@@ -129,11 +129,13 @@ if st.sidebar.button("Testa Notifica Telegram"):
     else:
         st.sidebar.error(f"Errore Telegram: {error_msg}")
 
-# --- SCANNER PRINCIPALE ---
+# --- SCANNER PRINCIPALE (CARICAMENTO AUTOMATICO) ---
 tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
-if st.button("🔄 Scansiona Tutta la Watchlist"):
-    st.info("Scansione in corso...")
+# Pulsante per aggiornare manualmente se necessario
+st.button("🔄 Aggiorna Dati Watchlist")
+
+with st.spinner("Caricamento dati di mercato in corso..."):
     results = []
     buy_signals = []
 
@@ -149,21 +151,7 @@ if st.button("🔄 Scansiona Tutta la Watchlist"):
         st.subheader("Tabella Monitoraggio In Tempo Reale")
         st.dataframe(df_results, use_container_width=True)
 
-        # Invia notifiche Telegram se ci sono segnali d'acquisto
         if buy_signals:
-            for item in buy_signals:
-                msg = (
-                    f"🚨 *SEGNALE DI ACQUISTO DETECTED!* 🚨\n\n"
-                    f"📈 *Ticker:* {item['Ticker']}\n"
-                    f"💰 *Prezzo:* ${item['Prezzo ($/€)']:.2f}\n"
-                    f"📊 *RSI:* {item['RSI (14)']:.2f}\n\n"
-                    f"📦 *Azioni Consigliate:* {item['Azioni Consigliate']}\n"
-                    f"🛑 *Stop Loss Target:* ${item['Stop Loss Target ($)']:.2f}\n"
-                    f"🎯 *Take Profit Target:* ${item['Take Profit Target ($)']:.2f}\n"
-                    f"💵 *Capitale Richiesto:* ${item['Capitale Richiesto ($/€)']:.2f}\n\n"
-                    f"⚡ *Azione:* Apri TradingView ed esegui l'ordine!"
-                )
-                send_telegram_alert(msg)
-            st.success(f"Trovati {len(buy_signals)} segnali COMPRA! Notifiche inviate su Telegram.")
+            st.success(f"Trovati {len(buy_signals)} segnali COMPRA!")
         else:
             st.warning("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento. L'algoritmo consiglia di attendere.")
