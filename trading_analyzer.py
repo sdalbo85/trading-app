@@ -23,7 +23,6 @@ def send_telegram_alert(message):
         if response.status_code == 200:
             return True, "OK"
         else:
-            # Restituisce il motivo esatto specificato dai server di Telegram
             return False, res_data.get("description", "Errore sconosciuto da Telegram")
     except Exception as e:
         return False, str(e)
@@ -100,4 +99,71 @@ def analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio):
 # ==========================================
 # 3. INTERFACCIA UTENTE STREAMLIT
 # ==========================================
-st.set_page_config(page_title="Screener & Analizzatore Borsa",
+st.set_page_config(page_title="Screener & Analizzatore Borsa", layout="wide")
+st.title("📈 Screener e Analizzatore di Borsa Multi-Titolo")
+
+# --- SIDEBAR: PARAMETRI ---
+st.sidebar.header("⚙️️ Gestione Rischio & Guadagno")
+
+watchlist_input = st.sidebar.text_area(
+    "Inserisci la Watchlist (separata da virgola):",
+    value="ANET, CSCO, MRVL, CRDO, CEG, VST, VRT, SU, EQIX, BYDDY, NVO, TSLA"
+)
+
+capital = st.sidebar.number_input("Capitale Totale (€/$):", value=10000.0, step=500.0)
+max_risk_pct = st.sidebar.slider("Rischio Max (%):", 0.5, 5.0, 2.0, 0.1)
+stop_loss_pct = st.sidebar.slider("Stop Loss (%):", 1.0, 10.0, 3.0, 0.5)
+rr_ratio = st.sidebar.slider("Rapporto Risk/Reward (es. 1:2 o 1:3):", 1.0, 5.0, 2.0, 0.5)
+
+# Box azzurro Target Take Profit
+calculated_tp = stop_loss_pct * rr_ratio
+st.sidebar.info(f"🎯 **Target Take Profit:** +{calculated_tp:.1f}% dal prezzo di acquisto")
+
+st.sidebar.markdown("---")
+st.sidebar.header("🔔 Test Notifiche")
+
+if st.sidebar.button("Testa Notifica Telegram"):
+    success, error_msg = send_telegram_alert("✅ *Test Riuscito!* Il tuo screener è collegato correttamente a Telegram.")
+    if success:
+        st.sidebar.success("Notifica inviata con successo sul telefono!")
+    else:
+        st.sidebar.error(f"Errore Telegram: {error_msg}")
+
+# --- SCANNER PRINCIPALE ---
+tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
+
+if st.button("🔄 Scansiona Tutta la Watchlist"):
+    st.info("Scansione in corso...")
+    results = []
+    buy_signals = []
+
+    for ticker in tickers:
+        data = analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio)
+        if data:
+            results.append(data)
+            if data["Decisione Algoritmo"] == "🟢 COMPRA":
+                buy_signals.append(data)
+
+    if results:
+        df_results = pd.DataFrame(results)
+        st.subheader("Tabella Monitoraggio In Tempo Reale")
+        st.dataframe(df_results, use_container_width=True)
+
+        # Invia notifiche Telegram se ci sono segnali d'acquisto
+        if buy_signals:
+            for item in buy_signals:
+                msg = (
+                    f"🚨 *SEGNALE DI ACQUISTO DETECTED!* 🚨\n\n"
+                    f"📈 *Ticker:* {item['Ticker']}\n"
+                    f"💰 *Prezzo:* ${item['Prezzo ($/€)']:.2f}\n"
+                    f"📊 *RSI:* {item['RSI (14)']:.2f}\n\n"
+                    f"📦 *Azioni Consigliate:* {item['Azioni Consigliate']}\n"
+                    f"🛑 *Stop Loss Target:* ${item['Stop Loss Target ($)']:.2f}\n"
+                    f"🎯 *Take Profit Target:* ${item['Take Profit Target ($)']:.2f}\n"
+                    f"💵 *Capitale Richiesto:* ${item['Capitale Richiesto ($/€)']:.2f}\n\n"
+                    f"⚡ *Azione:* Apri TradingView ed esegui l'ordine!"
+                )
+                send_telegram_alert(msg)
+            st.success(f"Trovati {len(buy_signals)} segnali COMPRA! Notifiche inviate su Telegram.")
+        else:
+            st.warning("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento. L'algoritmo consiglia di attendere.")
