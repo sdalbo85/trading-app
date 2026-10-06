@@ -6,6 +6,9 @@ on:
     - cron: '0 6-20 * * 1-5'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -24,3 +27,11 @@ jobs:
 
       - name: Run Scanner
         run: python auto_scanner.py
+
+      - name: Commit and push log updates
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+          git add trading_log.csv || true
+          git commit -m "Auto-update trading log" || true
+          git push || true
