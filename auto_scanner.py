@@ -4,7 +4,7 @@ import requests
 import os
 from datetime import datetime
 
-TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4H0wwgy18byQ6swNSo-XxLJY"
+TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY" 
 TELEGRAM_CHAT_ID = "8821873237"
 
 WATCHLIST = ["ANET", "CSCO", "MRVL", "CRDO", "CEG", "VST", "VRT", "SU", "EQIX", "BYDDY", "NVO", "TSLA"]
