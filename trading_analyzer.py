@@ -42,10 +42,17 @@ ticker_list = [t.strip().upper() for t in watchlist_input.split(",") if t.strip(
 
 period = st.sidebar.selectbox("Periodo Storico:", ["6m", "1y", "2y", "5y"], index=1)
 
-st.sidebar.subheader("🛡️ Parametri Rischio Singola Operazione")
+st.sidebar.subheader("🛡️ Gestione Rischio & Guadagno")
 capital = st.sidebar.number_input("Capitale Totale (€/$):", min_value=100.0, value=10000.0, step=500.0)
 risk_per_trade_pct = st.sidebar.slider("Rischio Max (%):", 0.5, 5.0, 2.0, 0.5)
 stop_loss_pct = st.sidebar.slider("Stop Loss (%):", 1.0, 10.0, 3.0, 0.5)
+
+# NUOVO PARAMETRO: Take Profit Target
+rr_ratio = st.sidebar.slider("Rapporto Risk/Reward (es. 1:2 o 1:3):", 1.0, 5.0, 2.0, 0.5)
+take_profit_pct = stop_loss_pct * rr_ratio
+
+st.sidebar.info(f"🎯 **Target Take Profit:** +{take_profit_pct:.1f}% dal prezzo di acquisto")
+
 estimated_spread = st.sidebar.number_input("Spread Stimato (€/$):", min_value=0.00, value=0.05, step=0.01)
 
 tab1, tab2 = st.tabs(["📊 Screener Automatico Watchlist", "🔍 Dettaglio Singolo Titolo"])
@@ -63,12 +70,10 @@ with tab1:
     if ticker_list:
         with st.spinner("Scaricamento dati veloce in corso..."):
             try:
-                # Download unico e veloce per tutti i titoli contemporaneamente
                 batch_data = yf.download(ticker_list, period=period, interval="1d", group_by='ticker', progress=False)
                 
                 for ticker in ticker_list:
                     try:
-                        # Estrazione dati del singolo ticker dal pacchetto batch
                         if len(ticker_list) == 1:
                             df_single = batch_data.copy()
                         else:
@@ -92,6 +97,10 @@ with tab1:
                             loss_per_sh = eff_price * (stop_loss_pct / 100.0)
                             shares = int(max_risk / loss_per_sh) if loss_per_sh > 0 else 0
                             
+                            # Calcolo Prezzi Target
+                            sl_price = eff_price * (1 - (stop_loss_pct / 100.0))
+                            tp_price = eff_price * (1 + (take_profit_pct / 100.0))
+                            
                             results.append({
                                 "Ticker": ticker,
                                 "Prezzo ($/€)": round(float(last_row['Close']), 2),
@@ -99,6 +108,8 @@ with tab1:
                                 "RSI (14)": round(float(last_row['RSI']), 1),
                                 "Sopra SMA50": "Sì" if last_row['Close'] > last_row['SMA_50'] else "No",
                                 "Azioni Consigliate": shares if last_row['Signal'] == 'BUY' else 0,
+                                "Stop Loss Target ($)": round(sl_price, 2) if last_row['Signal'] == 'BUY' else 0,
+                                "Take Profit Target ($)": round(tp_price, 2) if last_row['Signal'] == 'BUY' else 0,
                                 "Capitale Richiesto ($/€)": round(shares * eff_price, 2) if last_row['Signal'] == 'BUY' else 0
                             })
                     except Exception:
@@ -120,7 +131,7 @@ with tab1:
         buy_opportunities = res_df[res_df['Decisione Algoritmo'] == "🟢 COMPRA"]
         if not buy_opportunities.empty:
             st.success(f"🎯 **Trovate {len(buy_opportunities)} opportunità di acquisto!**")
-            st.table(buy_opportunities[['Ticker', 'Prezzo ($/€)', 'RSI (14)', 'Azioni Consigliate', 'Capitale Richiesto ($/€)']])
+            st.table(buy_opportunities[['Ticker', 'Prezzo ($/€)', 'Azioni Consigliate', 'Stop Loss Target ($)', 'Take Profit Target ($)', 'Capitale Richiesto ($/€)']])
         else:
             st.info("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento. L'algoritmo consiglia di attendere.")
 
