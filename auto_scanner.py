@@ -31,7 +31,6 @@ def calculate_rsi(data, period=14):
     return 100 - (100 / (1 + rs))
 
 def log_trade(ticker, price, rsi, vol_status, sl, tp, shares, capital_req):
-    """Registra l'operazione nel file CSV."""
     file_exists = os.path.isfile(LOG_FILE)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -74,7 +73,7 @@ def run_scan():
             current_vol = float(volume.iloc[-1])
             avg_vol = float(vol_sma_20.iloc[-1])
 
-            # Condizione di acquisto Standard
+            # Condizione d'acquisto principale (Non si perde nessun segnale)
             if current_price > current_sma and current_rsi < 45:
                 max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
                 sl_target = current_price * (1 - (STOP_LOSS_PCT / 100.0))
@@ -85,15 +84,17 @@ def run_scan():
                 shares = int(max_risk_amount / risk_per_share) if risk_per_share > 0 else 0
                 req_capital = shares * current_price
 
+                # Valutazione informativa della forza dei volumi
                 vol_status = "ALTI" if current_vol > avg_vol else "STANDBY"
+                vol_badge = "🔥 ALTI (Sopra la media 20gg)" if vol_status == "ALTI" else "❄️ STANDBY / MEDI"
 
-                # 1. Invia notifica Telegram
+                # 1. Notifica Telegram con indicatore volumi
                 msg = (
                     f"🚨 *SEGNALE DI ACQUISTO DETECTED!* 🚨\n\n"
                     f"📈 *Ticker:* {ticker}\n"
                     f"💰 *Prezzo Attuale:* ${current_price:.2f}\n"
                     f"📊 *RSI:* {current_rsi:.2f}\n"
-                    f"⚡ *Forza Volumi:* {'🔥 ALTI' if vol_status == 'ALTI' else '❄️ STANDBY'}\n\n"
+                    f"⚡ *Forza Volumi:* {vol_badge}\n\n"
                     f"📦 *Azioni Consigliate:* {shares}\n"
                     f"🛑 *Stop Loss Target:* ${sl_target:.2f}\n"
                     f"🎯 *Take Profit Target:* ${tp_target:.2f}\n"
@@ -102,7 +103,7 @@ def run_scan():
                 )
                 send_telegram_alert(msg)
 
-                # 2. Salva lo storico nel file CSV
+                # 2. Salva lo storico nel CSV
                 log_trade(ticker, current_price, current_rsi, vol_status, sl_target, tp_target, shares, req_capital)
 
         except Exception as e:
