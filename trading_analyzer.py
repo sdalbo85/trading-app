@@ -1,151 +1,119 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
 import requests
 
-# ==========================================
-# 1. CONFIGURAZIONE TELEGRAM
-# ==========================================
-TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY"
-TELEGRAM_CHAT_ID = "8821873237"
+# Configurazione pagina Streamlit
+st.set_page_config(page_title="Trading Screener", layout="wide")
 
-def send_telegram_alert(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        res_data = response.json()
-        if response.status_code == 200:
-            return True, "OK"
-        else:
-            return False, res_data.get("description", "Errore sconosciuto da Telegram")
-    except Exception as e:
-        return False, str(e)
+st.title("📊 Trading Screener & Analyzer")
 
-# ==========================================
-# 2. FUNZIONI CALCOLO INDICATORI
-# ==========================================
-def calculate_rsi(data, period=14):
-    delta = data.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
-
-def analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio):
-    try:
-        df = yf.download(ticker, period="1y", interval="1d", progress=False)
-        if df.empty:
-            return None
-        
-        if isinstance(df.columns, pd.MultiIndex):
-            df = df.xs(ticker, axis=1, level=1)
-
-        close = df['Close']
-        volume = df['Volume']
-
-        sma_50 = close.rolling(window=50).mean()
-        vol_sma_20 = volume.rolling(window=20).mean()
-        rsi = calculate_rsi(close, period=14)
-
-        current_price = float(close.iloc[-1])
-        current_sma = float(sma_50.iloc[-1])
-        current_rsi = float(rsi.iloc[-1])
-        current_vol = float(volume.iloc[-1])
-        avg_vol = float(vol_sma_20.iloc[-1])
-
-        if current_price > current_sma and current_rsi < 45:
-            decision = "🟢 COMPRA"
-        elif current_rsi > 70 or current_price < current_sma:
-            decision = "🔴 VENDI / FUORI"
-        else:
-            decision = "⚪ ATTENDI"
-
-        if decision == "🟢 COMPRA":
-            max_risk_amount = capital * (max_risk_pct / 100.0)
-            sl_target = current_price * (1 - (stop_loss_pct / 100.0))
-            tp_pct = stop_loss_pct * rr_ratio
-            tp_target = current_price * (1 + (tp_pct / 100.0))
-            
-            risk_per_share = current_price - sl_target
-            shares = int(max_risk_amount / risk_per_share) if risk_per_share > 0 else 0
-            req_capital = shares * current_price
-        else:
-            shares = 0
-            sl_target = 0.0
-            tp_target = 0.0
-            req_capital = 0.0
-
-        return {
-            "Ticker": ticker,
-            "Prezzo ($/€)": current_price,
-            "Decisione Algoritmo": decision,
-            "RSI (14)": current_rsi,
-            "Forza Volumi": "🔥 Alti" if current_vol > avg_vol else "❄️ Normali",
-            "Sopra SMA50": "Sì" if current_price > current_sma else "No",
-            "Azioni Consigliate": shares,
-            "Stop Loss Target ($)": sl_target,
-            "Take Profit Target ($)": tp_target,
-            "Capitale Richiesto ($/€)": req_capital
-        }
-    except Exception as e:
-        st.error(f"Errore nell'analisi di {ticker}: {e}")
-        return None
-
-# ==========================================
-# 3. INTERFACCIA UTENTE STREAMLIT
-# ==========================================
-st.set_page_config(page_title="Screener & Analizzatore Borsa", layout="wide")
-st.title("📈 Screener e Analizzatore di Borsa Multi-Titolo")
-
-# --- SIDEBAR: PARAMETRI ---
-st.sidebar.header("⚙️ Gestione Rischio & Guadagno")
+# --- SIDEBAR: PARAMETRI E WATCHLIST ---
+st.sidebar.header("⚙️ Configurazione")
 
 watchlist_input = st.sidebar.text_area(
     "Inserisci la Watchlist (separata da virgola):",
     value="ANET, CSCO, MRVL, CRDO, CEG, VST, VRT, SU, EQIX, BYDDY, NVO, TSLA, PLTR, AMD, NET, COIN, ARM, CELH, SHOP, UBER, PATH, PANW"
 )
 
-capital = st.sidebar.number_input("Capitale Totale (€/$):", value=10000.0, step=500.0)
-max_risk_pct = st.sidebar.slider("Rischio Max (%):", 0.5, 5.0, 2.0, 0.1)
-stop_loss_pct = st.sidebar.slider("Stop Loss (%):", 1.0, 10.0, 3.0, 0.5)
-rr_ratio = st.sidebar.slider("Rapporto Risk/Reward (es. 1:2 o 1:3):", 1.0, 5.0, 2.0, 0.5)
+capitale = st.sidebar.number_input("Capitale Totale ($):", value=10000, step=500)
+rischio_pct = st.sidebar.slider("Rischio Max per Trade (%):", 0.5, 5.0, 2.0) / 100
+stop_loss_pct = st.sidebar.slider("Stop Loss (%):", 1.0, 10.0, 3.0) / 100
 
-calculated_tp = stop_loss_pct * rr_ratio
-st.sidebar.info(f"🎯 **Target Take Profit:** +{calculated_tp:.1f}% dal prezzo di acquisto")
-
-st.sidebar.markdown("---")
-st.sidebar.header("🔔 Test Notifiche")
+# Parametri Telegram facoltativi per testare dall'interfaccia
+st.sidebar.subheader("📲 Test Telegram")
+telegram_token = st.sidebar.text_input("Bot Token:", type="password")
+telegram_chat_id = st.sidebar.text_input("Chat ID:")
 
 if st.sidebar.button("Testa Notifica Telegram"):
-    success, error_msg = send_telegram_alert("✅ *Test Riuscito!* Il tuo screener è collegato correttamente a Telegram.")
-    if success:
-        st.sidebar.success("Notifica inviata con successo sul telefono!")
+    if telegram_token and telegram_chat_id:
+        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+        payload = {"chat_id": telegram_chat_id, "text": "🔔 Test notifica da Streamlit riuscito!"}
+        res = requests.post(url, json=payload)
+        if res.status_code == 200:
+            st.sidebar.success("Messaggio inviato!")
+        else:
+            st.sidebar.error(f"Errore Telegram: {res.text}")
     else:
-        st.sidebar.error(f"Errore Telegram: {error_msg}")
+        st.sidebar.warning("Inserisci Token e Chat ID per il test.")
 
-# --- SCANNER PRINCIPALE ---
+# --- ELABORAZIONE DATI ---
 tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
-st.button("🔄 Aggiorna Dati Watchlist")
+def calcola_rsi(data, window=14):
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
 
-with st.spinner("Caricamento dati di mercato in corso..."):
-    results = []
-    buy_signals = []
+results = []
 
+if st.button("🔄 Aggiorna Dati Watchlist"):
+    st.cache_data.clear()
+
+with st.spinner("Analisi dei dati di mercato in corso..."):
     for ticker in tickers:
-        data = analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio)
-        if data:
-            results.append(data)
-            if data["Decisione Algoritmo"] == "🟢 COMPRA":
-                buy_signals.append(data)
+        try:
+            df = yf.download(ticker, period="6m", interval="1d", progress=False)
+            if df.empty or len(df) < 50:
+                continue
 
-    if results:
-        df_results = pd.DataFrame(results)
-        st.subheader("Tabella Monitoraggio In Tempo Reale")
-        st.dataframe(df_results, use_container_width=True)
+            # Gestione colonne MultiIndex di yfinance
+            if isinstance(df.columns, pd.MultiIndex):
+                close_prices = df["Close"][ticker]
+                volume_data = df["Volume"][ticker]
+            else:
+                close_prices = df["Close"]
+                volume_data = df["Volume"]
 
-        if buy_signals:
-            st.success(f"Trovati {len(buy_signals)} segnali COMPRA!")
-        else:
-            st.warning("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento.")
+            prezzo_attuale = float(close_prices.iloc[-1])
+            sma50 = float(close_prices.rolling(50).mean().iloc[-1])
+            rsi = float(calcola_rsi(close_prices).iloc[-1])
+            
+            # Calcolo forza volumi (Media 20 giorni)
+            vol_attuale = float(volume_data.iloc[-1])
+            vol_sma20 = float(volume_data.rolling(20).mean().iloc[-1])
+            forza_volumi = "🔥 Alti" if vol_attuale > vol_sma20 else "❄️ Normali"
+
+            # Logica di Segnale
+            if prezzo_attuale > sma50 and rsi < 45:
+                segnale = "🟢 COMPRA"
+            elif prezzo_attuale < sma50 or rsi > 70:
+                segnale = "🔴 VENDI"
+            else:
+                segnale = "⚪ ATTENDI"
+
+            # Calcolo Money Management
+            stop_loss_price = prezzo_attuale * (1 - stop_loss_pct)
+            take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2)) # R/R 1:2
+            rischio_dollari = capitale * rischio_pct
+            perdita_per_azione = prezzo_attuale - stop_loss_price
+            azioni_consigliate = int(rischio_dollari / perdita_per_azione) if perdita_per_azione > 0 else 0
+
+            results.append({
+                "Ticker": ticker,
+                "Segnale": segnale,
+                "Prezzo ($)": round(prezzo_attuale, 2),
+                "RSI (14)": round(rsi, 2),
+                "SMA 50 ($)": round(sma50, 2),
+                "Forza Volumi": forza_volumi,
+                "Stop Loss ($)": round(stop_loss_price, 2),
+                "Take Profit ($)": round(take_profit_price, 2),
+                "Azioni Consigliate": azioni_consigliate
+            })
+        except Exception as e:
+            st.warning(f"Impossibile analizzare {ticker}: {e}")
+
+df_results = pd.DataFrame(results)
+
+# --- TABELLA PRINCIPALE ---
+if not df_results.empty:
+    st.subheader("📋 Tabella Analisi Live")
+    st.dataframe(df_results, use_container_width=True)
+
+    # --- SEZIONE GRAFICO SINGOLO TITOLO ---
+    st.markdown("---")
+    st.subheader("📈 Analisi Grafica Singolo
