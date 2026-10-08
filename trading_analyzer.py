@@ -42,43 +42,36 @@ if st.sidebar.button("Testa Notifica Telegram"):
 # --- ELABORAZIONE DATI ---
 tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
-def calcola_rsi(data, window=14):
-    delta = data.diff()
+def calcola_rsi(series, window=14):
+    delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-results = []
-
 if st.button("Aggiorna Dati Watchlist"):
     st.cache_data.clear()
+
+results = []
 
 with st.spinner("Analisi dei dati di mercato in corso..."):
     for ticker in tickers:
         try:
-            df = yf.download(ticker, period="6m", interval="1d", progress=False)
+            df = yf.Ticker(ticker).history(period="6m")
             if df.empty or len(df) < 50:
                 continue
 
-            # Gestione colonne MultiIndex di yfinance
-            if isinstance(df.columns, pd.MultiIndex):
-                close_prices = df["Close"][ticker]
-                volume_data = df["Volume"][ticker]
-            else:
-                close_prices = df["Close"]
-                volume_data = df["Volume"]
+            close_prices = df["Close"]
+            volume_data = df["Volume"]
 
             prezzo_attuale = float(close_prices.iloc[-1])
             sma50 = float(close_prices.rolling(50).mean().iloc[-1])
             rsi = float(calcola_rsi(close_prices).iloc[-1])
             
-            # Calcolo forza volumi (Media 20 giorni)
             vol_attuale = float(volume_data.iloc[-1])
             vol_sma20 = float(volume_data.rolling(20).mean().iloc[-1])
             forza_volumi = "Alti" if vol_attuale > vol_sma20 else "Normali"
 
-            # Logica di Segnale
             if prezzo_attuale > sma50 and rsi < 45:
                 segnale = "COMPRA"
             elif prezzo_attuale < sma50 or rsi > 70:
@@ -86,7 +79,6 @@ with st.spinner("Analisi dei dati di mercato in corso..."):
             else:
                 segnale = "ATTENDI"
 
-            # Calcolo Money Management
             stop_loss_price = prezzo_attuale * (1 - stop_loss_pct)
             take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2))
             rischio_dollari = capitale * rischio_pct
@@ -105,7 +97,7 @@ with st.spinner("Analisi dei dati di mercato in corso..."):
                 "Azioni Consigliate": azioni_consigliate
             })
         except Exception as e:
-            st.warning(f"Impossibile analizzare {ticker}: {e}")
+            continue
 
 df_results = pd.DataFrame(results)
 
@@ -121,14 +113,10 @@ if not df_results.empty:
     selected_ticker = st.selectbox("Seleziona un titolo per visualizzare il grafico:", df_results["Ticker"].tolist())
 
     if selected_ticker:
-        data_chart = yf.download(selected_ticker, period="6m", interval="1d", progress=False)
+        data_chart = yf.Ticker(selected_ticker).history(period="6m")
 
         if not data_chart.empty:
-            if isinstance(data_chart.columns, pd.MultiIndex):
-                chart_close = data_chart["Close"][selected_ticker]
-            else:
-                chart_close = data_chart["Close"]
-
+            chart_close = data_chart["Close"]
             sma50_chart = chart_close.rolling(window=50).mean()
 
             fig = go.Figure()
@@ -145,4 +133,4 @@ if not df_results.empty:
 
             st.plotly_chart(fig, use_container_width=True)
 else:
-    st.error("Nessun dato recuperato dalla watchlist.")
+    st.error("Nessun dato recuperato. Clicca su 'Aggiorna Dati Watchlist' in alto per ricaricare.")
