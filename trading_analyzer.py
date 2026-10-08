@@ -36,63 +36,68 @@ if st.button("🔄 Aggiorna Dati"):
 results = []
 
 with st.spinner("Caricamento dati di mercato..."):
-    for ticker in tickers:
-        try:
-            df = yf.download(ticker, period="6m", interval="1d", progress=False, auto_adjust=True)
-            if df.empty or len(df) < 50:
-                continue
+    try:
+        # Download batch unico per tutti i ticker
+        data_all = yf.download(tickers, period="6m", interval="1d", progress=False, auto_adjust=True)
+        
+        for ticker in tickers:
+            try:
+                if isinstance(data_all.columns, pd.MultiIndex):
+                    close_prices = data_all["Close"][ticker].dropna()
+                    volume_data = data_all["Volume"][ticker].dropna()
+                else:
+                    close_prices = data_all["Close"].dropna()
+                    volume_data = data_all["Volume"].dropna()
 
-            if isinstance(df.columns, pd.MultiIndex):
-                close_prices = df["Close"][ticker]
-                volume_data = df["Volume"][ticker]
-            else:
-                close_prices = df["Close"]
-                volume_data = df["Volume"]
+                if len(close_prices) < 50:
+                    continue
 
-            prezzo_attuale = float(close_prices.iloc[-1])
-            sma50 = float(close_prices.rolling(window=50).mean().iloc[-1])
-            rsi = float(calculate_rsi(close_prices, period=14).iloc[-1])
-            
-            vol_attuale = float(volume_data.iloc[-1])
-            vol_sma20 = float(volume_data.rolling(window=20).mean().iloc[-1])
-            forza_volumi = "🔥 Alti" if vol_attuale > vol_sma20 else "❄️ Normali"
-
-            if prezzo_attuale > sma50 and rsi < 45:
-                decision = "🟢 COMPRA"
-            elif rsi > 70 or prezzo_attuale < sma50:
-                decision = "🔴 VENDI"
-            else:
-                decision = "⚪ ATTENDI"
-
-            if decision == "🟢 COMPRA":
-                max_risk_amount = capitale * (max_risk_pct / 100.0)
-                sl_target = prezzo_attuale * (1 - (stop_loss_pct / 100.0))
-                tp_pct = stop_loss_pct * rr_ratio
-                tp_target = prezzo_attuale * (1 + (tp_pct / 100.0))
+                prezzo_attuale = float(close_prices.iloc[-1])
+                sma50 = float(close_prices.rolling(window=50).mean().iloc[-1])
+                rsi = float(calculate_rsi(close_prices, period=14).iloc[-1])
                 
-                risk_per_share = prezzo_attuale - sl_target
-                shares = int(max_risk_amount / risk_per_share) if risk_per_share > 0 else 0
-                req_capital = shares * prezzo_attuale
-            else:
-                shares = 0
-                sl_target = 0.0
-                tp_target = 0.0
-                req_capital = 0.0
+                vol_attuale = float(volume_data.iloc[-1])
+                vol_sma20 = float(volume_data.rolling(window=20).mean().iloc[-1])
+                forza_volumi = "🔥 Alti" if vol_attuale > vol_sma20 else "❄️ Normali"
 
-            results.append({
-                "Ticker": ticker,
-                "Prezzo ($)": round(prezzo_attuale, 2),
-                "Decisione": decision,
-                "RSI": round(rsi, 2),
-                "Volumi": forza_volumi,
-                "Sopra SMA50": "Si" if prezzo_attuale > sma50 else "No",
-                "Azioni": shares,
-                "Stop Loss ($)": round(sl_target, 2),
-                "Take Profit ($)": round(tp_target, 2),
-                "Capitale ($)": round(req_capital, 2)
-            })
-        except Exception:
-            continue
+                if prezzo_attuale > sma50 and rsi < 45:
+                    decision = "🟢 COMPRA"
+                elif rsi > 70 or prezzo_attuale < sma50:
+                    decision = "🔴 VENDI"
+                else:
+                    decision = "⚪ ATTENDI"
+
+                if decision == "🟢 COMPRA":
+                    max_risk_amount = capitale * (max_risk_pct / 100.0)
+                    sl_target = prezzo_attuale * (1 - (stop_loss_pct / 100.0))
+                    tp_pct = stop_loss_pct * rr_ratio
+                    tp_target = prezzo_attuale * (1 + (tp_pct / 100.0))
+                    
+                    risk_per_share = prezzo_attuale - sl_target
+                    shares = int(max_risk_amount / risk_per_share) if risk_per_share > 0 else 0
+                    req_capital = shares * prezzo_attuale
+                else:
+                    shares = 0
+                    sl_target = 0.0
+                    tp_target = 0.0
+                    req_capital = 0.0
+
+                results.append({
+                    "Ticker": ticker,
+                    "Prezzo ($)": round(prezzo_attuale, 2),
+                    "Decisione": decision,
+                    "RSI": round(rsi, 2),
+                    "Volumi": forza_volumi,
+                    "Sopra SMA50": "Si" if prezzo_attuale > sma50 else "No",
+                    "Azioni": shares,
+                    "Stop Loss ($)": round(sl_target, 2),
+                    "Take Profit ($)": round(tp_target, 2),
+                    "Capitale ($)": round(req_capital, 2)
+                })
+            except Exception:
+                continue
+    except Exception as e:
+        st.error(f"Errore download batch: {e}")
 
 df_results = pd.DataFrame(results)
 
@@ -109,29 +114,27 @@ if not df_results.empty:
 
     if selected_ticker:
         try:
-            data_chart = yf.download(selected_ticker, period="6m", interval="1d", progress=False, auto_adjust=True)
-            if not data_chart.empty:
-                if isinstance(data_chart.columns, pd.MultiIndex):
-                    chart_close = data_chart["Close"][selected_ticker]
-                else:
-                    chart_close = data_chart["Close"]
+            if isinstance(data_all.columns, pd.MultiIndex):
+                chart_close = data_all["Close"][selected_ticker].dropna()
+            else:
+                chart_close = data_all["Close"].dropna()
 
-                sma50_chart = chart_close.rolling(window=50).mean()
+            sma50_chart = chart_close.rolling(window=50).mean()
 
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=data_chart.index, y=chart_close, mode="lines", name="Prezzo"))
-                fig.add_trace(go.Scatter(x=data_chart.index, y=sma50_chart, mode="lines", name="SMA 50"))
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=chart_close.index, y=chart_close, mode="lines", name="Prezzo"))
+            fig.add_trace(go.Scatter(x=chart_close.index, y=sma50_chart, mode="lines", name="SMA 50"))
 
-                fig.update_layout(
-                    title=f"Prezzo e SMA 50: {selected_ticker}",
-                    xaxis_title="Data",
-                    yaxis_title="Prezzo ($)",
-                    template="plotly_white",
-                    height=500
-                )
+            fig.update_layout(
+                title=f"Prezzo e SMA 50: {selected_ticker}",
+                xaxis_title="Data",
+                yaxis_title="Prezzo ($)",
+                template="plotly_white",
+                height=500
+            )
 
-                st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
         except Exception:
-            st.warning("Grafico non disponibile.")
+            st.warning("Grafico non disponibile per questo titolo.")
 else:
-    st.warning("Nessun dato disponibile.")
+    st.warning("Nessun dato disponibile al momento. Prova a fare clic su '🔄 Aggiorna Dati'.")
