@@ -50,22 +50,18 @@ if st.button("🔄 Aggiorna Dati Watchlist"):
 
 results = []
 
-with st.spinner("Caricamento dati di mercato in corso..."):
+with st.spinner("Caricamento dati di mercato..."):
     for ticker in tickers:
         try:
-            # Download diretto per singolo ticker
+            # Download singolo senza MultiIndex
             df = yf.download(ticker, period="6m", interval="1d", progress=False, auto_adjust=True)
             
             if df.empty or len(df) < 50:
                 continue
 
-            # Gestione colonne MultiIndex
-            if isinstance(df.columns, pd.MultiIndex):
-                close_prices = df["Close"][ticker]
-                volume_data = df["Volume"][ticker]
-            else:
-                close_prices = df["Close"]
-                volume_data = df["Volume"]
+            # Estrazione sicura
+            close_prices = df["Close"].squeeze()
+            volume_data = df["Volume"].squeeze()
 
             prezzo_attuale = float(close_prices.iloc[-1])
             sma50 = float(close_prices.rolling(50).mean().iloc[-1])
@@ -119,11 +115,7 @@ if not df_results.empty:
             data_chart = yf.download(selected_ticker, period="6m", interval="1d", progress=False, auto_adjust=True)
 
             if not data_chart.empty:
-                if isinstance(data_chart.columns, pd.MultiIndex):
-                    chart_close = data_chart["Close"][selected_ticker]
-                else:
-                    chart_close = data_chart["Close"]
-
+                chart_close = data_chart["Close"].squeeze()
                 sma50_chart = chart_close.rolling(window=50).mean()
 
                 fig = go.Figure()
@@ -140,6 +132,6 @@ if not df_results.empty:
 
                 st.plotly_chart(fig, use_container_width=True)
         except Exception:
-            st.warning("Grafico non disponibile.")
+            st.warning("Grafico momentaneamente non disponibile.")
 else:
-    st.error("I dati non si sono caricati. Verifica di aver aggiornato il file requirements.txt e fai un reboot dell'app.")
+    st.warning("Caricamento in corso o dati non disponibili. Fai clic su '🔄 Aggiorna Dati Watchlist'.")
