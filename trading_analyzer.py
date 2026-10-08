@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import requests
+import time
 
 # Configurazione pagina Streamlit
 st.set_page_config(page_title="Trading Screener", layout="wide")
@@ -55,61 +56,56 @@ if st.button("🔄 Aggiorna Dati Watchlist"):
 results = []
 
 with st.spinner("Analisi dei dati di mercato in corso..."):
-    try:
-        # Download cumulativo in un'unica chiamata (evita blocchi IP)
-        download_data = yf.download(tickers, period="6m", interval="1d", group_by="ticker", progress=False)
-        
-        for ticker in tickers:
-            try:
-                if len(tickers) == 1:
-                    df = download_data
-                else:
-                    if ticker not in download_data.columns.levels[0]:
-                        continue
-                    df = download_data[ticker].dropna()
+    for ticker in tickers:
+        try:
+            # Scarica singolarmente con gestione sicura dei dati
+            df = yf.download(ticker, period="6m", interval="1d", progress=False)
+            
+            if df.empty or len(df) < 50:
+                continue
 
-                if df.empty or len(df) < 50:
-                    continue
-
+            # Pulizia colonne MultiIndex se presente
+            if isinstance(df.columns, pd.MultiIndex):
+                close_prices = df["Close"][ticker]
+                volume_data = df["Volume"][ticker]
+            else:
                 close_prices = df["Close"]
                 volume_data = df["Volume"]
 
-                prezzo_attuale = float(close_prices.iloc[-1])
-                sma50 = float(close_prices.rolling(50).mean().iloc[-1])
-                rsi = float(calcola_rsi(close_prices).iloc[-1])
-                
-                vol_attuale = float(volume_data.iloc[-1])
-                vol_sma20 = float(volume_data.rolling(20).mean().iloc[-1])
-                forza_volumi = "Alti" if vol_attuale > vol_sma20 else "Normali"
+            prezzo_attuale = float(close_prices.iloc[-1])
+            sma50 = float(close_prices.rolling(50).mean().iloc[-1])
+            rsi = float(calcola_rsi(close_prices).iloc[-1])
+            
+            vol_attuale = float(volume_data.iloc[-1])
+            vol_sma20 = float(volume_data.rolling(20).mean().iloc[-1])
+            forza_volumi = "Alti" if vol_attuale > vol_sma20 else "Normali"
 
-                if prezzo_attuale > sma50 and rsi < 45:
-                    segnale = "COMPRA"
-                elif prezzo_attuale < sma50 or rsi > 70:
-                    segnale = "VENDI"
-                else:
-                    segnale = "ATTENDI"
+            if prezzo_attuale > sma50 and rsi < 45:
+                segnale = "COMPRA"
+            elif prezzo_attuale < sma50 or rsi > 70:
+                segnale = "VENDI"
+            else:
+                segnale = "ATTENDI"
 
-                stop_loss_price = prezzo_attuale * (1 - stop_loss_pct)
-                take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2))
-                rischio_dollari = capitale * rischio_pct
-                perdita_per_azione = prezzo_attuale - stop_loss_price
-                azioni_consigliate = int(rischio_dollari / perdita_per_azione) if perdita_per_azione > 0 else 0
+            stop_loss_price = prezzo_attuale * (1 - stop_loss_pct)
+            take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2))
+            rischio_dollari = capitale * rischio_pct
+            perdita_per_azione = prezzo_attuale - stop_loss_price
+            azioni_consigliate = int(rischio_dollari / perdita_per_azione) if perdita_per_azione > 0 else 0
 
-                results.append({
-                    "Ticker": ticker,
-                    "Segnale": segnale,
-                    "Prezzo ($)": round(prezzo_attuale, 2),
-                    "RSI (14)": round(rsi, 2),
-                    "SMA 50 ($)": round(sma50, 2),
-                    "Forza Volumi": forza_volumi,
-                    "Stop Loss ($)": round(stop_loss_price, 2),
-                    "Take Profit ($)": round(take_profit_price, 2),
-                    "Azioni Consigliate": azioni_consigliate
-                })
-            except Exception:
-                continue
-    except Exception as e:
-        st.error(f"Errore durante il recupero dei dati: {e}")
+            results.append({
+                "Ticker": ticker,
+                "Segnale": segnale,
+                "Prezzo ($)": round(prezzo_attuale, 2),
+                "RSI (14)": round(rsi, 2),
+                "SMA 50 ($)": round(sma50, 2),
+                "Forza Volumi": forza_volumi,
+                "Stop Loss ($)": round(stop_loss_price, 2),
+                "Take Profit ($)": round(take_profit_price, 2),
+                "Azioni Consigliate": azioni_consigliate
+            })
+        except Exception:
+            continue
 
 df_results = pd.DataFrame(results)
 
@@ -152,4 +148,4 @@ if not df_results.empty:
         except Exception:
             st.warning("Impossibile caricare il grafico per questo titolo.")
 else:
-    st.error("Nessun dato recuperato. Prova a ricaricare la pagina o a ridurre temporaneamente la watchlist.")
+    st.warning("Mercato chiuso o aggiornamento in corso. Prova a ridurre leggermente la watchlist se Yahoo blocca le richieste.")
