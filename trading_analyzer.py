@@ -8,10 +8,10 @@ import requests
 # Configurazione pagina Streamlit
 st.set_page_config(page_title="Trading Screener", layout="wide")
 
-st.title("📊 Trading Screener & Analyzer")
+st.title("Trading Screener & Analyzer")
 
 # --- SIDEBAR: PARAMETRI E WATCHLIST ---
-st.sidebar.header("⚙️ Configurazione")
+st.sidebar.header("Configurazione")
 
 watchlist_input = st.sidebar.text_area(
     "Inserisci la Watchlist (separata da virgola):",
@@ -22,15 +22,15 @@ capitale = st.sidebar.number_input("Capitale Totale ($):", value=10000, step=500
 rischio_pct = st.sidebar.slider("Rischio Max per Trade (%):", 0.5, 5.0, 2.0) / 100
 stop_loss_pct = st.sidebar.slider("Stop Loss (%):", 1.0, 10.0, 3.0) / 100
 
-# Parametri Telegram facoltativi per testare dall'interfaccia
-st.sidebar.subheader("📲 Test Telegram")
+# Parametri Telegram facoltativi per test
+st.sidebar.subheader("Test Telegram")
 telegram_token = st.sidebar.text_input("Bot Token:", type="password")
 telegram_chat_id = st.sidebar.text_input("Chat ID:")
 
 if st.sidebar.button("Testa Notifica Telegram"):
     if telegram_token and telegram_chat_id:
         url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-        payload = {"chat_id": telegram_chat_id, "text": "🔔 Test notifica da Streamlit riuscito!"}
+        payload = {"chat_id": telegram_chat_id, "text": "Test notifica da Streamlit riuscito!"}
         res = requests.post(url, json=payload)
         if res.status_code == 200:
             st.sidebar.success("Messaggio inviato!")
@@ -51,7 +51,7 @@ def calcola_rsi(data, window=14):
 
 results = []
 
-if st.button("🔄 Aggiorna Dati Watchlist"):
+if st.button("Aggiorna Dati Watchlist"):
     st.cache_data.clear()
 
 with st.spinner("Analisi dei dati di mercato in corso..."):
@@ -76,19 +76,19 @@ with st.spinner("Analisi dei dati di mercato in corso..."):
             # Calcolo forza volumi (Media 20 giorni)
             vol_attuale = float(volume_data.iloc[-1])
             vol_sma20 = float(volume_data.rolling(20).mean().iloc[-1])
-            forza_volumi = "🔥 Alti" if vol_attuale > vol_sma20 else "❄️ Normali"
+            forza_volumi = "Alti" if vol_attuale > vol_sma20 else "Normali"
 
             # Logica di Segnale
             if prezzo_attuale > sma50 and rsi < 45:
-                segnale = "🟢 COMPRA"
+                segnale = "COMPRA"
             elif prezzo_attuale < sma50 or rsi > 70:
-                segnale = "🔴 VENDI"
+                segnale = "VENDI"
             else:
-                segnale = "⚪ ATTENDI"
+                segnale = "ATTENDI"
 
             # Calcolo Money Management
             stop_loss_price = prezzo_attuale * (1 - stop_loss_pct)
-            take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2)) # R/R 1:2
+            take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2))
             rischio_dollari = capitale * rischio_pct
             perdita_per_azione = prezzo_attuale - stop_loss_price
             azioni_consigliate = int(rischio_dollari / perdita_per_azione) if perdita_per_azione > 0 else 0
@@ -111,9 +111,14 @@ df_results = pd.DataFrame(results)
 
 # --- TABELLA PRINCIPALE ---
 if not df_results.empty:
-    st.subheader("📋 Tabella Analisi Live")
+    st.subheader("Tabella Analisi Live")
     st.dataframe(df_results, use_container_width=True)
 
     # --- SEZIONE GRAFICO SINGOLO TITOLO ---
     st.markdown("---")
-    st.subheader("📈 Analisi Grafica Singolo
+    st.subheader("Analisi Grafica Singolo Titolo")
+
+    selected_ticker = st.selectbox("Seleziona un titolo per visualizzare il grafico:", df_results["Ticker"].tolist())
+
+    if selected_ticker:
+        data_
