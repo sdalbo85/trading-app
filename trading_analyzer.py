@@ -35,7 +35,7 @@ if st.sidebar.button("Testa Notifica Telegram"):
     else:
         st.sidebar.warning("Inserisci Token e Chat ID.")
 
-# --- ELABORAZIONE DATI ---
+# --- ELABORAZIONE DATI IN CACHE (Protezione da Rate-Limit) ---
 tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
 def calcola_rsi(series, window=14):
@@ -45,21 +45,28 @@ def calcola_rsi(series, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
+@st.cache_data(ttl=1800)  # Salva i dati in cache per 30 minuti
+def scarica_dati_watchlist(lista_ticker):
+    dati_raccolti = []
+    for ticker in lista_ticker:
+        try:
+            df = yf.download(ticker, period="6m", interval="1d", progress=False, auto_adjust=True)
+            if not df.empty and len(df) >= 50:
+                dati_raccolti.append((ticker, df))
+        except Exception:
+            continue
+    return dati_raccolti
+
 if st.button("🔄 Aggiorna Dati Watchlist"):
     st.cache_data.clear()
 
 results = []
 
 with st.spinner("Caricamento dati di mercato..."):
-    for ticker in tickers:
+    dati = scarica_dati_watchlist(tickers)
+    
+    for ticker, df in dati:
         try:
-            # Download singolo senza MultiIndex
-            df = yf.download(ticker, period="6m", interval="1d", progress=False, auto_adjust=True)
-            
-            if df.empty or len(df) < 50:
-                continue
-
-            # Estrazione sicura
             close_prices = df["Close"].squeeze()
             volume_data = df["Volume"].squeeze()
 
@@ -111,27 +118,25 @@ if not df_results.empty:
     selected_ticker = st.selectbox("Seleziona un titolo:", df_results["Ticker"].tolist())
 
     if selected_ticker:
-        try:
-            data_chart = yf.download(selected_ticker, period="6m", interval="1d", progress=False, auto_adjust=True)
+        # Recupera il DataFrame del ticker selezionato direttamente dalla memoria
+        df_chart = next((df for t, df in dati if t == selected_ticker), None)
 
-            if not data_chart.empty:
-                chart_close = data_chart["Close"].squeeze()
-                sma50_chart = chart_close.rolling(window=50).mean()
+        if df_chart is not None and not df_chart.empty:
+            chart_close = df_chart["Close"].squeeze()
+            sma50_chart = chart_close.rolling(window=50).mean()
 
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(x=data_chart.index, y=chart_close, mode="lines", name="Prezzo", line=dict(color="#1f77b4", width=2)))
-                fig.add_trace(go.Scatter(x=data_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=df_chart.index, y=chart_close, mode="lines", name="Prezzo", line=dict(color="#1f77b4", width=2)))
+            fig.add_trace(go.Scatter(x=df_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
 
-                fig.update_layout(
-                    title=f"Grafico Prezzo e SMA 50 - {selected_ticker}",
-                    xaxis_title="Data",
-                    yaxis_title="Prezzo ($)",
-                    template="plotly_white",
-                    height=500
-                )
+            fig.update_layout(
+                title=f"Grafico Prezzo e SMA 50 - {selected_ticker}",
+                xaxis_title="Data",
+                yaxis_title="Prezzo ($)",
+                template="plotly_white",
+                height=500
+            )
 
-                st.plotly_chart(fig, use_container_width=True)
-        except Exception:
-            st.warning("Grafico momentaneamente non disponibile.")
+            st.plotly_chart(fig, use_container_width=True)
 else:
-    st.warning("Caricamento in corso o dati non disponibili. Fai clic su '🔄 Aggiorna Dati Watchlist'.")
+    st.warning("Nessun dato caricato. Prova a cliccare su '🔄 Aggiorna Dati Watchlist'.")
