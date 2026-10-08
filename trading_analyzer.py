@@ -121,4 +121,28 @@ if not df_results.empty:
     selected_ticker = st.selectbox("Seleziona un titolo per visualizzare il grafico:", df_results["Ticker"].tolist())
 
     if selected_ticker:
-        data_
+        data_chart = yf.download(selected_ticker, period="6m", interval="1d", progress=False)
+
+        if not data_chart.empty:
+            if isinstance(data_chart.columns, pd.MultiIndex):
+                chart_close = data_chart["Close"][selected_ticker]
+            else:
+                chart_close = data_chart["Close"]
+
+            sma50_chart = chart_close.rolling(window=50).mean()
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=data_chart.index, y=chart_close, mode="lines", name="Prezzo di Chiusura", line=dict(color="#1f77b4", width=2)))
+            fig.add_trace(go.Scatter(x=data_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
+
+            fig.update_layout(
+                title=f"Grafico Prezzo e SMA 50 - {selected_ticker}",
+                xaxis_title="Data",
+                yaxis_title="Prezzo ($)",
+                template="plotly_white",
+                height=500
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+else:
+    st.error("Nessun dato recuperato dalla watchlist.")
