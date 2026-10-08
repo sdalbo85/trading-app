@@ -49,55 +49,67 @@ def calcola_rsi(series, window=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-if st.button("Aggiorna Dati Watchlist"):
+if st.button("🔄 Aggiorna Dati Watchlist"):
     st.cache_data.clear()
 
 results = []
 
 with st.spinner("Analisi dei dati di mercato in corso..."):
-    for ticker in tickers:
-        try:
-            df = yf.Ticker(ticker).history(period="6m")
-            if df.empty or len(df) < 50:
+    try:
+        # Download cumulativo in un'unica chiamata (evita blocchi IP)
+        download_data = yf.download(tickers, period="6m", interval="1d", group_by="ticker", progress=False)
+        
+        for ticker in tickers:
+            try:
+                if len(tickers) == 1:
+                    df = download_data
+                else:
+                    if ticker not in download_data.columns.levels[0]:
+                        continue
+                    df = download_data[ticker].dropna()
+
+                if df.empty or len(df) < 50:
+                    continue
+
+                close_prices = df["Close"]
+                volume_data = df["Volume"]
+
+                prezzo_attuale = float(close_prices.iloc[-1])
+                sma50 = float(close_prices.rolling(50).mean().iloc[-1])
+                rsi = float(calcola_rsi(close_prices).iloc[-1])
+                
+                vol_attuale = float(volume_data.iloc[-1])
+                vol_sma20 = float(volume_data.rolling(20).mean().iloc[-1])
+                forza_volumi = "Alti" if vol_attuale > vol_sma20 else "Normali"
+
+                if prezzo_attuale > sma50 and rsi < 45:
+                    segnale = "COMPRA"
+                elif prezzo_attuale < sma50 or rsi > 70:
+                    segnale = "VENDI"
+                else:
+                    segnale = "ATTENDI"
+
+                stop_loss_price = prezzo_attuale * (1 - stop_loss_pct)
+                take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2))
+                rischio_dollari = capitale * rischio_pct
+                perdita_per_azione = prezzo_attuale - stop_loss_price
+                azioni_consigliate = int(rischio_dollari / perdita_per_azione) if perdita_per_azione > 0 else 0
+
+                results.append({
+                    "Ticker": ticker,
+                    "Segnale": segnale,
+                    "Prezzo ($)": round(prezzo_attuale, 2),
+                    "RSI (14)": round(rsi, 2),
+                    "SMA 50 ($)": round(sma50, 2),
+                    "Forza Volumi": forza_volumi,
+                    "Stop Loss ($)": round(stop_loss_price, 2),
+                    "Take Profit ($)": round(take_profit_price, 2),
+                    "Azioni Consigliate": azioni_consigliate
+                })
+            except Exception:
                 continue
-
-            close_prices = df["Close"]
-            volume_data = df["Volume"]
-
-            prezzo_attuale = float(close_prices.iloc[-1])
-            sma50 = float(close_prices.rolling(50).mean().iloc[-1])
-            rsi = float(calcola_rsi(close_prices).iloc[-1])
-            
-            vol_attuale = float(volume_data.iloc[-1])
-            vol_sma20 = float(volume_data.rolling(20).mean().iloc[-1])
-            forza_volumi = "Alti" if vol_attuale > vol_sma20 else "Normali"
-
-            if prezzo_attuale > sma50 and rsi < 45:
-                segnale = "COMPRA"
-            elif prezzo_attuale < sma50 or rsi > 70:
-                segnale = "VENDI"
-            else:
-                segnale = "ATTENDI"
-
-            stop_loss_price = prezzo_attuale * (1 - stop_loss_pct)
-            take_profit_price = prezzo_attuale * (1 + (stop_loss_pct * 2))
-            rischio_dollari = capitale * rischio_pct
-            perdita_per_azione = prezzo_attuale - stop_loss_price
-            azioni_consigliate = int(rischio_dollari / perdita_per_azione) if perdita_per_azione > 0 else 0
-
-            results.append({
-                "Ticker": ticker,
-                "Segnale": segnale,
-                "Prezzo ($)": round(prezzo_attuale, 2),
-                "RSI (14)": round(rsi, 2),
-                "SMA 50 ($)": round(sma50, 2),
-                "Forza Volumi": forza_volumi,
-                "Stop Loss ($)": round(stop_loss_price, 2),
-                "Take Profit ($)": round(take_profit_price, 2),
-                "Azioni Consigliate": azioni_consigliate
-            })
-        except Exception as e:
-            continue
+    except Exception as e:
+        st.error(f"Errore durante il recupero dei dati: {e}")
 
 df_results = pd.DataFrame(results)
 
@@ -113,24 +125,31 @@ if not df_results.empty:
     selected_ticker = st.selectbox("Seleziona un titolo per visualizzare il grafico:", df_results["Ticker"].tolist())
 
     if selected_ticker:
-        data_chart = yf.Ticker(selected_ticker).history(period="6m")
+        try:
+            data_chart = yf.download(selected_ticker, period="6m", interval="1d", progress=False)
 
-        if not data_chart.empty:
-            chart_close = data_chart["Close"]
-            sma50_chart = chart_close.rolling(window=50).mean()
+            if not data_chart.empty:
+                if isinstance(data_chart.columns, pd.MultiIndex):
+                    chart_close = data_chart["Close"][selected_ticker]
+                else:
+                    chart_close = data_chart["Close"]
 
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=data_chart.index, y=chart_close, mode="lines", name="Prezzo di Chiusura", line=dict(color="#1f77b4", width=2)))
-            fig.add_trace(go.Scatter(x=data_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
+                sma50_chart = chart_close.rolling(window=50).mean()
 
-            fig.update_layout(
-                title=f"Grafico Prezzo e SMA 50 - {selected_ticker}",
-                xaxis_title="Data",
-                yaxis_title="Prezzo ($)",
-                template="plotly_white",
-                height=500
-            )
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=data_chart.index, y=chart_close, mode="lines", name="Prezzo di Chiusura", line=dict(color="#1f77b4", width=2)))
+                fig.add_trace(go.Scatter(x=data_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
 
-            st.plotly_chart(fig, use_container_width=True)
+                fig.update_layout(
+                    title=f"Grafico Prezzo e SMA 50 - {selected_ticker}",
+                    xaxis_title="Data",
+                    yaxis_title="Prezzo ($)",
+                    template="plotly_white",
+                    height=500
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+        except Exception:
+            st.warning("Impossibile caricare il grafico per questo titolo.")
 else:
-    st.error("Nessun dato recuperato. Clicca su 'Aggiorna Dati Watchlist' in alto per ricaricare.")
+    st.error("Nessun dato recuperato. Prova a ricaricare la pagina o a ridurre temporaneamente la watchlist.")
