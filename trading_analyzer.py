@@ -1,17 +1,13 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 import requests
-import time
 
-# Configurazione pagina Streamlit
 st.set_page_config(page_title="Trading Screener", layout="wide")
-
 st.title("Trading Screener & Analyzer")
 
-# --- SIDEBAR: PARAMETRI E WATCHLIST ---
+# --- SIDEBAR ---
 st.sidebar.header("Configurazione")
 
 watchlist_input = st.sidebar.text_area(
@@ -23,7 +19,6 @@ capitale = st.sidebar.number_input("Capitale Totale ($):", value=10000, step=500
 rischio_pct = st.sidebar.slider("Rischio Max per Trade (%):", 0.5, 5.0, 2.0) / 100
 stop_loss_pct = st.sidebar.slider("Stop Loss (%):", 1.0, 10.0, 3.0) / 100
 
-# Parametri Telegram facoltativi per test
 st.sidebar.subheader("Test Telegram")
 telegram_token = st.sidebar.text_input("Bot Token:", type="password")
 telegram_chat_id = st.sidebar.text_input("Chat ID:")
@@ -31,14 +26,14 @@ telegram_chat_id = st.sidebar.text_input("Chat ID:")
 if st.sidebar.button("Testa Notifica Telegram"):
     if telegram_token and telegram_chat_id:
         url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-        payload = {"chat_id": telegram_chat_id, "text": "Test notifica da Streamlit riuscito!"}
+        payload = {"chat_id": telegram_chat_id, "text": "Test notifica riuscito!"}
         res = requests.post(url, json=payload)
         if res.status_code == 200:
             st.sidebar.success("Messaggio inviato!")
         else:
-            st.sidebar.error(f"Errore Telegram: {res.text}")
+            st.sidebar.error("Errore invio Telegram.")
     else:
-        st.sidebar.warning("Inserisci Token e Chat ID per il test.")
+        st.sidebar.warning("Inserisci Token e Chat ID.")
 
 # --- ELABORAZIONE DATI ---
 tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
@@ -55,22 +50,19 @@ if st.button("🔄 Aggiorna Dati Watchlist"):
 
 results = []
 
-with st.spinner("Analisi dei dati di mercato in corso..."):
+with st.spinner("Caricamento dati di mercato in corso..."):
     for ticker in tickers:
         try:
-            # Scarica singolarmente con gestione sicura dei dati
-            df = yf.download(ticker, period="6m", interval="1d", progress=False)
+            # Scarica usando l'oggetto Ticker (più stabile su Streamlit)
+            t = yf.Ticker(ticker)
+            df = t.history(period="6m")
             
             if df.empty or len(df) < 50:
                 continue
 
-            # Pulizia colonne MultiIndex se presente
-            if isinstance(df.columns, pd.MultiIndex):
-                close_prices = df["Close"][ticker]
-                volume_data = df["Volume"][ticker]
-            else:
-                close_prices = df["Close"]
-                volume_data = df["Volume"]
+            # Estrazione pulita
+            close_prices = df["Close"]
+            volume_data = df["Volume"]
 
             prezzo_attuale = float(close_prices.iloc[-1])
             sma50 = float(close_prices.rolling(50).mean().iloc[-1])
@@ -109,31 +101,27 @@ with st.spinner("Analisi dei dati di mercato in corso..."):
 
 df_results = pd.DataFrame(results)
 
-# --- TABELLA PRINCIPALE ---
+# --- TABELLA E GRAFICO ---
 if not df_results.empty:
     st.subheader("Tabella Analisi Live")
     st.dataframe(df_results, use_container_width=True)
 
-    # --- SEZIONE GRAFICO SINGOLO TITOLO ---
     st.markdown("---")
     st.subheader("Analisi Grafica Singolo Titolo")
 
-    selected_ticker = st.selectbox("Seleziona un titolo per visualizzare il grafico:", df_results["Ticker"].tolist())
+    selected_ticker = st.selectbox("Seleziona un titolo:", df_results["Ticker"].tolist())
 
     if selected_ticker:
         try:
-            data_chart = yf.download(selected_ticker, period="6m", interval="1d", progress=False)
+            t_chart = yf.Ticker(selected_ticker)
+            data_chart = t_chart.history(period="6m")
 
             if not data_chart.empty:
-                if isinstance(data_chart.columns, pd.MultiIndex):
-                    chart_close = data_chart["Close"][selected_ticker]
-                else:
-                    chart_close = data_chart["Close"]
-
+                chart_close = data_chart["Close"]
                 sma50_chart = chart_close.rolling(window=50).mean()
 
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(x=data_chart.index, y=chart_close, mode="lines", name="Prezzo di Chiusura", line=dict(color="#1f77b4", width=2)))
+                fig.add_trace(go.Scatter(x=data_chart.index, y=chart_close, mode="lines", name="Prezzo", line=dict(color="#1f77b4", width=2)))
                 fig.add_trace(go.Scatter(x=data_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
 
                 fig.update_layout(
@@ -146,6 +134,6 @@ if not df_results.empty:
 
                 st.plotly_chart(fig, use_container_width=True)
         except Exception:
-            st.warning("Impossibile caricare il grafico per questo titolo.")
+            st.warning("Grafico non disponibile.")
 else:
-    st.warning("Mercato chiuso o aggiornamento in corso. Prova a ridurre leggermente la watchlist se Yahoo blocca le richieste.")
+    st.error("I dati non si sono caricati. Riprova tra 1 minuto o fai il reboot dell'app da Streamlit Cloud.")
