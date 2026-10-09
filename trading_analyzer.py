@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import requests
+import plotly.graph_objects as go
 
 # ==========================================
 # 1. CONFIGURAZIONE TELEGRAM
@@ -149,3 +150,37 @@ with st.spinner("Caricamento dati di mercato in corso..."):
             st.success(f"Trovati {len(buy_signals)} segnali COMPRA!")
         else:
             st.warning("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento.")
+
+        # ==========================================
+        # 4. ANALISI GRAFICA SINGOLO TITOLO
+        # ==========================================
+        st.markdown("---")
+        st.subheader("📈 Analisi Grafica Singolo Titolo")
+
+        selected_ticker = st.selectbox("Seleziona un titolo dalla watchlist:", df_results["Ticker"].tolist())
+
+        if selected_ticker:
+            try:
+                df_chart = yf.download(selected_ticker, period="1y", interval="1d", progress=False)
+                if not df_chart.empty:
+                    if isinstance(df_chart.columns, pd.MultiIndex):
+                        df_chart = df_chart.xs(selected_ticker, axis=1, level=1)
+
+                    chart_close = df_chart['Close']
+                    sma50_chart = chart_close.rolling(window=50).mean()
+
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(x=df_chart.index, y=chart_close, mode="lines", name="Prezzo", line=dict(color="#1f77b4", width=2)))
+                    fig.add_trace(go.Scatter(x=df_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
+
+                    fig.update_layout(
+                        title=f"Grafico Prezzo e SMA 50 - {selected_ticker}",
+                        xaxis_title="Data",
+                        yaxis_title="Prezzo ($)",
+                        template="plotly_white",
+                        height=500
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.warning("Impossibile caricare il grafico al momento.")
