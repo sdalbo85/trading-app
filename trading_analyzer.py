@@ -107,7 +107,7 @@ st.sidebar.header("⚙️ Gestione Rischio & Guadagno")
 
 watchlist_input = st.sidebar.text_area(
     "Inserisci la Watchlist (separata da virgola):",
-    value="SU, PLTR, AMD, NET, COIN, CELH, SHOP, UBER, PATH, PANW"
+    value="SU, PLTR, AMD, NET, COIN, CELH, SHOP, UBER, PATH, PANW, ANET, CSCO, MRVL, CRDO, CEG, VST, VRT, EQIX, NVO, TSLA"
 )
 
 capital = st.sidebar.number_input("Capitale Totale (€/$):", value=10000.0, step=500.0)
