@@ -99,6 +99,9 @@ def analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio):
 st.set_page_config(page_title="Screener & Analizzatore Borsa", layout="wide")
 st.title("📈 Screener e Analizzatore di Borsa Multi-Titolo")
 
+# --- STRUTTURA A SCHEDE (TABS) ---
+tab1, tab2 = st.tabs(["📊 Screener Automatico Watchlist", "🔍 Dettaglio Singolo Titolo"])
+
 # --- SIDEBAR: PARAMETRI ---
 st.sidebar.header("⚙️ Gestione Rischio & Guadagno")
 
@@ -125,62 +128,82 @@ if st.sidebar.button("Testa Notifica Telegram"):
     else:
         st.sidebar.error(f"Errore Telegram: {error_msg}")
 
-# --- SCANNER PRINCIPALE ---
 tickers = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
-st.button("🔄 Aggiorna Dati Watchlist")
+# ==========================================
+# TAB 1: SCREENER AUTOMATICO WATCHLIST
+# ==========================================
+with tab1:
+    st.button("🔄 Scansiona Tutta la Watchlist")
 
-with st.spinner("Caricamento dati di mercato in corso..."):
-    results = []
-    buy_signals = []
+    with st.spinner("Caricamento dati di mercato in corso..."):
+        results = []
+        buy_signals = []
 
-    for ticker in tickers:
-        data = analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio)
-        if data:
-            results.append(data)
-            if data["Decisione Algoritmo"] == "🟢 COMPRA":
-                buy_signals.append(data)
+        for ticker in tickers:
+            data = analyze_ticker(ticker, capital, max_risk_pct, stop_loss_pct, rr_ratio)
+            if data:
+                results.append(data)
+                if data["Decisione Algoritmo"] == "🟢 COMPRA":
+                    buy_signals.append(data)
 
-    if results:
-        df_results = pd.DataFrame(results)
-        st.subheader("Tabella Monitoraggio In Tempo Reale")
-        st.dataframe(df_results, use_container_width=True)
+        if results:
+            df_results = pd.DataFrame(results)
+            st.subheader("Tabella Monitoraggio In Tempo Reale")
+            st.dataframe(df_results, use_container_width=True)
 
-        if buy_signals:
-            st.success(f"Trovati {len(buy_signals)} segnali COMPRA!")
-        else:
-            st.warning("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento.")
+            if buy_signals:
+                st.success(f"Trovati {len(buy_signals)} segnali COMPRA!")
+            else:
+                st.info("Nessun titolo della watchlist soddisfa le condizioni di acquisto al momento. L'algoritmo consiglia di attendere.")
 
-        # ==========================================
-        # 4. ANALISI GRAFICA SINGOLO TITOLO
-        # ==========================================
-        st.markdown("---")
-        st.subheader("📈 Analisi Grafica Singolo Titolo")
+# ==========================================
+# TAB 2: DETTAGLIO SINGOLO TITOLO (GRAFICO)
+# ==========================================
+with tab2:
+    st.subheader("📊 Analisi Grafica e Dettaglio Singolo Titolo")
+    selected_ticker = st.selectbox("Seleziona un titolo da analizzare:", tickers)
 
-        selected_ticker = st.selectbox("Seleziona un titolo dalla watchlist:", df_results["Ticker"].tolist())
+    if selected_ticker:
+        try:
+            df_chart = yf.download(selected_ticker, period="1y", interval="1d", progress=False)
+            if not df_chart.empty:
+                if isinstance(df_chart.columns, pd.MultiIndex):
+                    df_chart = df_chart.xs(selected_ticker, axis=1, level=1)
 
-        if selected_ticker:
-            try:
-                df_chart = yf.download(selected_ticker, period="1y", interval="1d", progress=False)
-                if not df_chart.empty:
-                    if isinstance(df_chart.columns, pd.MultiIndex):
-                        df_chart = df_chart.xs(selected_ticker, axis=1, level=1)
+                chart_close = df_chart['Close']
+                sma50_chart = chart_close.rolling(window=50).mean()
 
-                    chart_close = df_chart['Close']
-                    sma50_chart = chart_close.rolling(window=50).mean()
+                fig = go.Figure()
 
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=chart_close, mode="lines", name="Prezzo", line=dict(color="#1f77b4", width=2)))
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=sma50_chart, mode="lines", name="SMA 50", line=dict(color="#ff7f0e", width=2)))
+                # Candele Giapponesi
+                fig.add_trace(go.Candlestick(
+                    x=df_chart.index,
+                    open=df_chart['Open'],
+                    high=df_chart['High'],
+                    low=df_chart['Low'],
+                    close=df_chart['Close'],
+                    name="Prezzo Candele"
+                ))
 
-                    fig.update_layout(
-                        title=f"Grafico Prezzo e SMA 50 - {selected_ticker}",
-                        xaxis_title="Data",
-                        yaxis_title="Prezzo ($)",
-                        template="plotly_white",
-                        height=500
-                    )
+                # Media Mobile SMA 50
+                fig.add_trace(go.Scatter(
+                    x=df_chart.index, 
+                    y=sma50_chart, 
+                    mode="lines", 
+                    name="SMA 50", 
+                    line=dict(color="#ff7f0e", width=2)
+                ))
 
-                    st.plotly_chart(fig, use_container_width=True)
-            except Exception as e:
-                st.warning("Impossibile caricare il grafico al momento.")
+                fig.update_layout(
+                    title=f"Grafico Candlestick e SMA 50 — {selected_ticker}",
+                    xaxis_title="Data",
+                    yaxis_title="Prezzo ($)",
+                    template="plotly_dark",
+                    height=550,
+                    xaxis_rangeslider_visible=False
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.warning(f"Impossibile caricare il grafico per {selected_ticker}: {e}")
