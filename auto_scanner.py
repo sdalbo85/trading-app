@@ -9,9 +9,7 @@ import pandas as pd
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8821873237")
 
-WATCHLIST = [
-"SU", "PLTR", "AMD", "NET", "COIN", "ARM", "CELH", "SHOP", "UBER", "PATH", "PANW", "ANET", "CSCO", "MRVL", "CRDO", "CEG", "VST", "EQUIX", "NVO", "TSLA"
-]
+WATCHLIST = [“NVDA”, “AMD”, “AVGO”, “ARM”, “PLTR”, “PANW”, “CRWD”, “NET”, “VST”, “CEG”, “VRT”, “ANET”, “AMZN”, “SHOP”, “MELI”, “CELH”, “COIN”, “UBER”, “PYPL”, “TSLA”]
 
 CAPITAL = 10000.0
 MAX_RISK_PCT = 2.0
