@@ -9,7 +9,11 @@ import pandas as pd
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8821873237")
 
-WATCHLIST = [“NVDA”, “AMD”, “AVGO”, “ARM”, “PLTR”, “PANW”, “CRWD”, “NET”, “VST”, “CEG”, “VRT”, “ANET”, “AMZN”, “SHOP”, “MELI”, “CELH”, “COIN”, “UBER”, “PYPL”, “TSLA”]
+WATCHLIST = [
+    "NVDA", "AMD", "AVGO", "ARM", "PLTR", "PANW", "CRWD", "NET", 
+    "VST", "CEG", "VRT", "ANET", "AMZN", "SHOP", "MELI", "CELH", 
+    "COIN", "UBER", "PYPL", "TSLA"
+]
 
 CAPITAL = 10000.0
 MAX_RISK_PCT = 2.0
@@ -69,7 +73,7 @@ def run_scanner():
             avg_vol = float(vol_sma_20.iloc[-1])
             current_atr = float(atr.iloc[-1])
 
-            # Condizione di acquisto
+            # Condizione di acquisto (Prezzo > SMA50 AND RSI < 45)
             if current_price > current_sma50 and current_rsi < 45:
                 # Rating di qualità
                 rating_score = 2
