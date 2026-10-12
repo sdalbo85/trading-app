@@ -6,8 +6,8 @@ import pandas as pd
 # ==========================================
 # CONFIGURAZIONE & PARAMETRI
 # ==========================================
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8821873237")
+TELEGRAM_TOKEN = "8880305168:AAEwG78l80y4HOwwgy18byQ6swNSo-XxlJY"
+TELEGRAM_CHAT_ID = "8821873237"
 
 WATCHLIST = [
     "NVDA", "AMD", "AVGO", "ARM", "PLTR", "PANW", "CRWD", "NET", 
