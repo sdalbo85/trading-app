@@ -2,36 +2,30 @@ name: Automatic Market Scanner
 
 on:
   schedule:
-    # Esegue ogni ora dal lunedì al venerdì dalle 08:00 alle 22:00 italiane (06:00 - 20:00 UTC)
-    - cron: '0 6-20 * * 1-5'
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    # Esegue la scansione dal lunedì al venerdì alle 16:00 e 21:00 UTC
+    - cron: '0 16,21 * * 1-5'
+  workflow_dispatch: # Permette l'avvio manuale da GitHub
 
 jobs:
   scan:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    - name: Configura Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          pip install yfinance pandas requests
+    - name: Installa Dipendenze
+      run: |
+        python -m pip install --upgrade pip
+        pip install yfinance pandas requests
 
-      - name: Run Scanner
-        run: python auto_scanner.py
-
-      - name: Commit and push log updates
-        run: |
-          git config --global user.name "GitHub Action Bot"
-          git config --global user.email "action@github.com"
-          git add trading_log.csv || true
-          git commit -m "Auto-update trading log" || true
-          git push || true
+    - name: Esegui Scanner
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: python auto_scanner.py
