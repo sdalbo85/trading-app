@@ -15,9 +15,9 @@ WATCHLIST = [
     "COIN", "UBER", "PYPL", "TSLA"
 ]
 
-CAPITAL = 10000.0
-MAX_RISK_PCT = 2.0
-RR_RATIO = 2.0
+CAPITAL = 1000.0        # Adattato al capitale reale di 1.000€
+MAX_RISK_PCT = 2.0     # Rischio massimo per trade (2% = 20€)
+RR_RATIO = 2.0         # Risk/Reward Ratio (1:2)
 
 def send_telegram_alert(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -44,7 +44,7 @@ def calculate_atr(df, period=14):
     return tr.rolling(window=period).mean()
 
 def run_scanner():
-    print("🚀 Avvio scansione automatica mercato...")
+    print("🚀 Avvio scansione ottimizzata con filtri di inversione...")
     buy_signals = []
 
     for ticker in WATCHLIST:
@@ -66,15 +66,32 @@ def run_scanner():
             atr = calculate_atr(df, period=14)
 
             current_price = float(close.iloc[-1])
+            prev_price = float(close.iloc[-2])
+            
             current_sma50 = float(sma_50.iloc[-1])
             current_sma200 = float(sma_200.iloc[-1])
+            
             current_rsi = float(rsi.iloc[-1])
+            prev_rsi = float(rsi.iloc[-2])
+            
             current_vol = float(volume.iloc[-1])
             avg_vol = float(vol_sma_20.iloc[-1])
             current_atr = float(atr.iloc[-1])
 
-            # Condizione di acquisto (Prezzo > SMA50 AND RSI < 45)
-            if current_price > current_sma50 and current_rsi < 45:
+            # ==========================================
+            # LOGICA DI INGRESSO RIGIDA (FILTRI ANTI-PERDITA)
+            # ==========================================
+            # 1. Trend di medio: Prezzo > SMA 50
+            # 2. Pullback contenuto: RSI < 48
+            # 3. CONFERMA INVERSIONE RSI: RSI oggi > RSI ieri (momentum rialzista)
+            # 4. CONFERMA CANDELA: Prezzo oggi > Prezzo ieri
+            
+            cond_trend = current_price > current_sma50
+            cond_pullback = current_rsi < 48
+            cond_rsi_rebound = current_rsi > prev_rsi
+            cond_price_rebound = current_price > prev_price
+
+            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
                 # Rating di qualità
                 rating_score = 2
                 if current_price > current_sma200:
@@ -83,35 +100,38 @@ def run_scanner():
                     rating_score += 1
                 stars = "⭐" * rating_score
 
-                # Risk Management ATR (1.5x ATR)
-                max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
-                sl_distance = current_atr * 1.5
+                # Risk Management (2.0x ATR per resistere al rumore)
+                max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0) # 20€ su 1.000€
+                sl_distance = current_atr * 2.0
                 sl_target = current_price - sl_distance
                 tp_target = current_price + (sl_distance * RR_RATIO)
                 
                 shares = int(max_risk_amount / sl_distance) if sl_distance > 0 else 0
+                if shares < 1:
+                    shares = 1 # Garanzia min 1 azione per conti ridotti
+
                 forza_vol = "🔥 Alti" if current_vol > avg_vol else "❄️ Normali"
                 sopra_200 = "Sì" if current_price > current_sma200 else "No"
 
                 msg = (
-                    f"🟢 **SEGNALE COMPRA: {ticker}**\n\n"
+                    f"🟢 **SEGNALE COMPRA OTTIMIZZATO: {ticker}**\n\n"
                     f"Qualità: {stars} ({rating_score}/4)\n"
-                    f"Prezzo: ${current_price:.2f}\n"
-                    f"RSI (14): {current_rsi:.1f}\n"
-                    f"Stop Loss (1.5x ATR): ${sl_target:.2f}\n"
+                    f"Prezzo di Ingresso: ${current_price:.2f}\n"
+                    f"RSI (14): {current_rsi:.1f} (Inversione dal precedente {prev_rsi:.1f})\n"
+                    f"Stop Loss (2.0x ATR): ${sl_target:.2f}\n"
                     f"Take Profit Target: ${tp_target:.2f}\n"
-                    f"Azioni Consigliate: {shares}\n"
+                    f"Azioni da Comprare: {shares} (Rischio Max: ~${max_risk_amount:.0f})\n"
                     f"Volumi: {forza_vol} | Sopra SMA200: {sopra_200}"
                 )
                 
                 send_telegram_alert(msg)
                 buy_signals.append(ticker)
-                print(f"✅ Segnale inviato per {ticker}")
+                print(f"✅ Segnale filtrato inviato per {ticker}")
 
         except Exception as e:
             print(f"Errore scansione {ticker}: {e}")
 
-    print(f"🏁 Scansione completata. Trovati {len(buy_signals)} segnali.")
+    print(f"🏁 Scansione completata. Trovati {len(buy_signals)} segnali filtrati.")
 
 if __name__ == "__main__":
     run_scanner()
