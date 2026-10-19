@@ -140,6 +140,8 @@ def load_data(tickers, period):
 # ==========================================
 # VISUALIZZAZIONE
 # ==========================================
+if st.button("🔄 Aggiorna Dati"):
+    st.rerun()
 with st.spinner("Scansione in corso..."):
     data_df = load_data(WATCHLIST, period_option)
 
