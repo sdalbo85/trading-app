@@ -72,4 +72,4 @@ def load_data(tickers, period):
                 continue
 
             if isinstance(df.columns, pd.MultiIndex):
-                df = df.
+                df = df.xs(ticker, axis=1,
