@@ -40,8 +40,8 @@ def calculate_atr(df, period=14):
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     return tr.rolling(window=period).mean()
 
-def get_screener_dataframe():
-    results = []
+def run_scanner():
+    print("Avvio scansione mercato...")
     for ticker in WATCHLIST:
         try:
             df = yf.download(ticker, period="1y", interval="1d", progress=False)
@@ -70,15 +70,43 @@ def get_screener_dataframe():
             avg_vol = float(vol_sma_20.iloc[-1]) if not pd.isna(vol_sma_20.iloc[-1]) else current_vol
             current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else current_price * 0.02
 
+            # Filtri d'ingresso
             cond_trend = current_price > current_sma50
             cond_pullback = current_rsi < 48
             cond_rsi_rebound = current_rsi > prev_rsi
             cond_price_rebound = current_price > prev_price
 
-            signal = "🔴 ATTESA"
-            stars = "-"
-            sl_target = 0.0
-            tp_target = 0.0
-            shares = 0
+            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
+                rating_score = 2
+                if current_price > current_sma200:
+                    rating_score += 1
+                if current_vol > avg_vol:
+                    rating_score += 1
+                stars = "⭐" * rating_score
 
-            if cond_
+                max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
+                sl_distance = current_atr * 2.0
+                sl_target = current_price - sl_distance
+                tp_target = current_price + (sl_distance * RR_RATIO)
+                
+                shares = int(max_risk_amount / sl_distance) if sl_distance > 0 else 1
+
+                msg = (
+                    f"🟢 **SEGNALE COMPRA OTTIMIZZATO: {ticker}**\n\n"
+                    f"Qualità: {stars}\n"
+                    f"Prezzo di Ingresso: ${current_price:.2f}\n"
+                    f"RSI (14): {current_rsi:.1f}\n"
+                    f"Stop Loss (2.0x ATR): ${sl_target:.2f}\n"
+                    f"Take Profit Target: ${tp_target:.2f}\n"
+                    f"Azioni consigliate: {shares}"
+                )
+                print(f"Segnale trovato per {ticker}! Invio notifica...")
+                send_telegram_alert(msg)
+        except Exception as e:
+            print(f"Errore su {ticker}: {e}")
+            continue
+
+    print("Scansione completata.")
+
+if __name__ == "__main__":
+    run_scanner()
