@@ -62,13 +62,29 @@ def calculate_atr(high, low, close, period=14):
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     return tr.rolling(window=period).mean()
 
-@st.cache_data(ttl=3600)
 def load_data(tickers, period):
     results = []
+    if not tickers:
+        return pd.DataFrame()
+        
+    try:
+        # Scarica tutti i dati in un'unica richiesta per massima velocità e stabilità
+        all_data = yf.download(tickers, period=period, group_by='ticker', progress=False)
+    except Exception as e:
+        st.error(f"Errore nel download da Yahoo Finance: {e}")
+        return pd.DataFrame()
+
     for ticker in tickers:
         try:
-            data = yf.Ticker(ticker).history(period=period)
-            if data.empty or len(data) < 200:
+            if len(tickers) == 1:
+                data = all_data
+            else:
+                if ticker not in all_data.columns.levels[0]:
+                    continue
+                data = all_data[ticker]
+
+            data = data.dropna(how="all")
+            if data.empty or len(data) < 50:
                 continue
 
             close = data['Close']
@@ -84,74 +100,10 @@ def load_data(tickers, period):
 
             current_price = float(close.iloc[-1])
             prev_price = float(close.iloc[-2])
-            current_sma50 = float(sma_50.iloc[-1])
-            current_sma200 = float(sma_200.iloc[-1])
+            current_sma50 = float(sma_50.iloc[-1]) if not pd.isna(sma_50.iloc[-1]) else current_price
+            current_sma200 = float(sma_200.iloc[-1]) if not pd.isna(sma_200.iloc[-1]) else current_price
             current_rsi = float(rsi.iloc[-1])
             prev_rsi = float(rsi.iloc[-2])
             current_vol = float(volume.iloc[-1])
-            avg_vol = float(vol_sma_20.iloc[-1])
-            current_atr = float(atr.iloc[-1])
-
-            # Filtri di ingresso
-            cond_trend = current_price > current_sma50
-            cond_pullback = current_rsi < 48
-            cond_rsi_rebound = current_rsi > prev_rsi
-            cond_price_rebound = current_price > prev_price
-
-            signal = "🔴 ATTESA"
-            stars = "-"
-            sl_target = 0.0
-            tp_target = 0.0
-            shares = 0
-
-            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
-                signal = "🟢 COMPRA"
-                rating_score = 2
-                if current_price > current_sma200:
-                    rating_score += 1
-                if current_vol > avg_vol:
-                    rating_score += 1
-                stars = "⭐" * rating_score
-
-                max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
-                sl_distance = current_atr * 2.0
-                sl_target = current_price - sl_distance
-                tp_target = current_price + (sl_distance * RR_RATIO)
-                
-                shares = int(max_risk_amount / sl_distance) if sl_distance > 0 else 0
-                if shares < 1:
-                    shares = 1
-
-            results.append({
-                "Ticker": ticker,
-                "Prezzo ($)": round(current_price, 2),
-                "Segnale": signal,
-                "Rating": stars,
-                "RSI": round(current_rsi, 1),
-                "Stop Loss ($)": round(sl_target, 2) if sl_target > 0 else "-",
-                "Take Profit ($)": round(tp_target, 2) if tp_target > 0 else "-",
-                "Azioni Consigliate": shares if shares > 0 else "-",
-                "Sopramedia 200": "Sì" if current_price > current_sma200 else "No",
-                "Volumi Alti": "Sì" if current_vol > avg_vol else "No"
-            })
-        except Exception:
-            continue
-
-    return pd.DataFrame(results)
-
-# ==========================================
-# INTERFACCIA PRINCIPALE
-# ==========================================
-with st.spinner("Caricamento dati di borsa in corso..."):
-    data_df = load_data(WATCHLIST, period_option)
-
-if not data_df.empty:
-    st.subheader("📋 Watchlist e Segnali in Tempo Reale")
-    
-    def highlight_buy(val):
-        return 'background-color: #1e4620; color: white' if val == "🟢 COMPRA" else ''
-
-    if hasattr(data_df.style, 'map'):
-        styled_df = data_df.style.map(highlight_buy, subset=['Segnale'])
-    else:
-        styled_df = data_df.style.applymap(highlight_buy, subset=['Segnale'])
+            avg_vol = float(vol_sma_20.iloc[-1]) if not pd.isna(vol_sma_20.iloc[-1]) else current_vol
+            current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else current_price * 0.
