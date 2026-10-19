@@ -120,11 +120,16 @@ with st.spinner("Caricamento dati di borsa in corso..."):
 if not data_df.empty:
     st.subheader("📋 Watchlist e Segnali in Tempo Reale")
     
-    # Evidenzia i segnali di acquisto
+    # Evidenzia i segnali di acquisto (utilizzando .map al posto di .applymap)
     def highlight_buy(val):
         color = 'background-color: #1e4620; color: white' if val == "🟢 COMPRA" else ''
         return color
 
-    st.dataframe(data_df.style.applymap(highlight_buy, subset=['Segnale']), use_container_width=True)
+    if hasattr(data_df.style, 'map'):
+        styled_df = data_df.style.map(highlight_buy, subset=['Segnale'])
+    else:
+        styled_df = data_df.style.applymap(highlight_buy, subset=['Segnale'])
+
+    st.dataframe(styled_df, use_container_width=True)
 else:
     st.error("Impossibile scaricare i dati. Riprova più tardi.")
