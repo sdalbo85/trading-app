@@ -55,10 +55,10 @@ def calculate_rsi(data, period=14):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-def calculate_atr(df, period=14):
-    high_low = df['High'] - df['Low']
-    high_close = (df['High'] - df['Close'].shift()).abs()
-    low_close = (df['Low'] - df['Close'].shift()).abs()
+def calculate_atr(high, low, close, period=14):
+    high_low = high - low
+    high_close = (high - close.shift()).abs()
+    low_close = (low - close.shift()).abs()
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     return tr.rolling(window=period).mean()
 
@@ -67,9 +67,91 @@ def load_data(tickers, period):
     results = []
     for ticker in tickers:
         try:
-            df = yf.download(ticker, period=period, interval="1d", progress=False)
-            if df.empty or len(df) < 200:
+            data = yf.Ticker(ticker).history(period=period)
+            if data.empty or len(data) < 200:
                 continue
 
-            if isinstance(df.columns, pd.MultiIndex):
-                df = df.xs(ticker, axis=1,
+            close = data['Close']
+            volume = data['Volume']
+            high = data['High']
+            low = data['Low']
+
+            sma_50 = close.rolling(window=50).mean()
+            sma_200 = close.rolling(window=200).mean()
+            vol_sma_20 = volume.rolling(window=20).mean()
+            rsi = calculate_rsi(close, period=14)
+            atr = calculate_atr(high, low, close, period=14)
+
+            current_price = float(close.iloc[-1])
+            prev_price = float(close.iloc[-2])
+            current_sma50 = float(sma_50.iloc[-1])
+            current_sma200 = float(sma_200.iloc[-1])
+            current_rsi = float(rsi.iloc[-1])
+            prev_rsi = float(rsi.iloc[-2])
+            current_vol = float(volume.iloc[-1])
+            avg_vol = float(vol_sma_20.iloc[-1])
+            current_atr = float(atr.iloc[-1])
+
+            # Filtri di ingresso
+            cond_trend = current_price > current_sma50
+            cond_pullback = current_rsi < 48
+            cond_rsi_rebound = current_rsi > prev_rsi
+            cond_price_rebound = current_price > prev_price
+
+            signal = "🔴 ATTESA"
+            stars = "-"
+            sl_target = 0.0
+            tp_target = 0.0
+            shares = 0
+
+            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
+                signal = "🟢 COMPRA"
+                rating_score = 2
+                if current_price > current_sma200:
+                    rating_score += 1
+                if current_vol > avg_vol:
+                    rating_score += 1
+                stars = "⭐" * rating_score
+
+                max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
+                sl_distance = current_atr * 2.0
+                sl_target = current_price - sl_distance
+                tp_target = current_price + (sl_distance * RR_RATIO)
+                
+                shares = int(max_risk_amount / sl_distance) if sl_distance > 0 else 0
+                if shares < 1:
+                    shares = 1
+
+            results.append({
+                "Ticker": ticker,
+                "Prezzo ($)": round(current_price, 2),
+                "Segnale": signal,
+                "Rating": stars,
+                "RSI": round(current_rsi, 1),
+                "Stop Loss ($)": round(sl_target, 2) if sl_target > 0 else "-",
+                "Take Profit ($)": round(tp_target, 2) if tp_target > 0 else "-",
+                "Azioni Consigliate": shares if shares > 0 else "-",
+                "Sopramedia 200": "Sì" if current_price > current_sma200 else "No",
+                "Volumi Alti": "Sì" if current_vol > avg_vol else "No"
+            })
+        except Exception:
+            continue
+
+    return pd.DataFrame(results)
+
+# ==========================================
+# INTERFACCIA PRINCIPALE
+# ==========================================
+with st.spinner("Caricamento dati di borsa in corso..."):
+    data_df = load_data(WATCHLIST, period_option)
+
+if not data_df.empty:
+    st.subheader("📋 Watchlist e Segnali in Tempo Reale")
+    
+    def highlight_buy(val):
+        return 'background-color: #1e4620; color: white' if val == "🟢 COMPRA" else ''
+
+    if hasattr(data_df.style, 'map'):
+        styled_df = data_df.style.map(highlight_buy, subset=['Segnale'])
+    else:
+        styled_df = data_df.style.applymap(highlight_buy, subset=['Segnale'])
