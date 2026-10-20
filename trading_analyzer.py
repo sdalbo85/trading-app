@@ -109,7 +109,7 @@ def load_data(tickers, period):
                     rating_score += 1
                 if current_vol > avg_vol:
                     rating_score += 1
-                stars = "⭐" * rating_score
+                stars = f"{rating_score}/4 ⭐"
 
                 max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
                 sl_distance = current_atr * 2.0
