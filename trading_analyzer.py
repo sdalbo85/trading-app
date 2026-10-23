@@ -14,7 +14,7 @@ st.markdown("Sistema automatico per swing trading basato su Trend, RSI, ATR e Vo
 # ==========================================
 st.sidebar.header("⚙️ Configurazione Watchlist")
 
-default_watchlist = "NVDA, AMD, AVGO, ARM, PLTR, PANW, CRWD, NET, VST, CEG, VRT, ANET, AMZN, SHOP, MELI, CELH, COIN, UBER, PYPL, TSLA"
+default_watchlist = "NVDA, AMD, AVGO, ARM, PLTR, PANW, CRWD, NET, VST, CEG, VRT, ANET, AMZN, SHOP, MELI, CELH, COIN, UBER, PYPL, TSLA, SU, XOM, CVX, CAT, LLY, NVO, COST, WMT, JPM, LMT"
 watchlist_input = st.sidebar.text_area("Watchlist (separata da virgola):", value=default_watchlist, height=120)
 WATCHLIST = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 
