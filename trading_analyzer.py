@@ -21,7 +21,7 @@ WATCHLIST = [t.strip().upper() for t in watchlist_input.split(",") if t.strip()]
 period_option = st.sidebar.selectbox("Periodo Storico:", ["1y", "6m", "2y"], index=0)
 
 st.sidebar.header("🛡️ Gestione Rischio & Guadagno")
-CAPITAL = st.sidebar.number_input("Capitale Totale (€/$):", value=1000.0, step=100.0)
+CAPITAL = st.sidebar.number_input("Capitale Totale (€/$):", value=5000.0, step=100.0)
 MAX_RISK_PCT = st.sidebar.slider("Rischio Max (%):", min_value=0.5, max_value=5.0, value=2.0, step=0.5)
 RR_RATIO = st.sidebar.slider("Rapporto Risk/Reward:", min_value=1.0, max_value=4.0, value=2.0, step=0.5)
 
