@@ -9,7 +9,8 @@ TELEGRAM_CHAT_ID = "8821873237"
 WATCHLIST = [
     "NVDA", "AMD", "AVGO", "ARM", "PLTR", "PANW", "CRWD", "NET", 
     "VST", "CEG", "VRT", "ANET", "AMZN", "SHOP", "MELI", "CELH", 
-    "COIN", "UBER", "PYPL", "TSLA"
+    "COIN", "UBER", "PYPL", "TSLA", "SU", "XOM", "CVX", "CAT", 
+    "LLY", "NVO", "COST", "WMT", "JPM", "LMT"
 ]
 
 CAPITAL = 1000.0
