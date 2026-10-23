@@ -13,7 +13,7 @@ WATCHLIST = [
     "LLY", "NVO", "COST", "WMT", "JPM", "LMT"
 ]
 
-CAPITAL = 1000.0
+CAPITAL = 5000.0
 MAX_RISK_PCT = 2.0
 RR_RATIO = 2.0
 
