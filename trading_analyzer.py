@@ -135,7 +135,12 @@ def load_data(tickers, period):
         except Exception:
             continue
 
-    return pd.DataFrame(results)
+    df_res = pd.DataFrame(results)
+    if not df_res.empty:
+        # Ordina: prima i segnali COMPRA (🟢) e poi ATTESA (🔴)
+        df_res['sort_priority'] = df_res['Segnale'].apply(lambda x: 0 if "COMPRA" in x else 1)
+        df_res = df_res.sort_values(by=['sort_priority', 'Rating'], ascending=[True, False]).drop(columns=['sort_priority'])
+    return df_res
 
 # ==========================================
 # VISUALIZZAZIONE
