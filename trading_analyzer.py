@@ -92,9 +92,10 @@ def load_data(tickers, period):
             current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else current_price * 0.02
 
             cond_trend = current_price > current_sma50
-            cond_pullback = current_rsi < 48
+            cond_pullback = current_rsi <= 42
             cond_rsi_rebound = current_rsi > prev_rsi
             cond_price_rebound = current_price > prev_price
+            cond_volumi_ok = current_vol > avg_vol
 
             signal = "🔴 ATTESA"
             stars = "-"
@@ -102,17 +103,16 @@ def load_data(tickers, period):
             tp_target = 0.0
             shares = 0
 
-            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
+            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound and cond_volumi_ok:
                 signal = "🟢 COMPRA"
-                rating_score = 2
+                rating_score = 3
                 if current_price > current_sma200:
                     rating_score += 1
-                if current_vol > avg_vol:
-                    rating_score += 1
+                
                 stars = f"{rating_score}/4 ⭐"
 
                 max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
-                sl_distance = current_atr * 2.0
+                sl_distance = current_atr * 2.5
                 sl_target = current_price - sl_distance
                 tp_target = current_price + (sl_distance * RR_RATIO)
                 
