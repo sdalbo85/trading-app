@@ -71,26 +71,32 @@ def run_scanner():
             avg_vol = float(vol_sma_20.iloc[-1]) if not pd.isna(vol_sma_20.iloc[-1]) else current_vol
             current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else current_price * 0.02
 
-            # Filtri d'ingresso
+            # 1. Filtri più severi: RSI <= 42 e Volumi Obbligatori
             cond_trend = current_price > current_sma50
-            cond_pullback = current_rsi < 48
+            cond_pullback = current_rsi <= 42  # Abbassato a 42 per catturare vero ipervenduto
             cond_rsi_rebound = current_rsi > prev_rsi
             cond_price_rebound = current_price > prev_price
+            cond_volumi_ok = current_vol > avg_vol  # Ora OBBLIGATORIO per comprare
 
-            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
-                rating_score = 2
+            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound and cond_volumi_ok:
+                signal = "🟢 COMPRA"
+                
+                # Rating basato su Sopramedia 200
+                rating_score = 3
                 if current_price > current_sma200:
                     rating_score += 1
-                if current_vol > avg_vol:
-                    rating_score += 1
-                stars = "⭐" * rating_score
+                
+                stars = f"{rating_score}/4 ⭐"
 
+                # Gestione Rischio: Stop Loss allargato a 2.5x ATR
                 max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
-                sl_distance = current_atr * 2.0
+                sl_distance = current_atr * 2.5
                 sl_target = current_price - sl_distance
                 tp_target = current_price + (sl_distance * RR_RATIO)
                 
-                shares = int(max_risk_amount / sl_distance) if sl_distance > 0 else 1
+                shares = int(max_risk_amount / sl_distance) if sl_distance > 0 else 0
+                if shares < 1:
+                    shares = 1
 
                 msg = (
                     f"🟢 **SEGNALE COMPRA OTTIMIZZATO: {ticker}**\n\n"
