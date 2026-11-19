@@ -90,8 +90,16 @@ def load_data(tickers, period):
             current_vol = float(volume.iloc[-1])
             avg_vol = float(vol_sma_20.iloc[-1]) if not pd.isna(vol_sma_20.iloc[-1]) else current_vol
             current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else current_price * 0.02
+            current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else current_price * 0.02
 
-                        # 1. Filtri bilanciati: RSI <= 46 e Volumi usati come conferma di qualità
+            # --- RESET OBBLIGATORIO AD OGNI TITOLO ---
+            signal = "🔴 ATTESA"
+            stars = "-"
+            sl_target = 0.0
+            tp_target = 0.0
+            shares = 0
+
+            # --- CONDIZIONI BILANCIATE ---
             cond_trend = current_price > current_sma50
             cond_pullback = current_rsi <= 46
             cond_rsi_rebound = current_rsi > prev_rsi
@@ -100,25 +108,23 @@ def load_data(tickers, period):
 
             if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
                 signal = "🟢 COMPRA"
-                
-                # Rating basato su SMA200 e Volumi
                 rating_score = 2
                 if current_price > current_sma200:
                     rating_score += 1
                 if cond_volumi_ok:
                     rating_score += 1
-                
-                stars = f"{rating_score}/4 ⭐"
 
+                stars = f"{rating_score}/4 ⭐"
 
                 max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
                 sl_distance = current_atr * 2.5
                 sl_target = current_price - sl_distance
                 tp_target = current_price + (sl_distance * RR_RATIO)
-                
+
                 shares = int(max_risk_amount / sl_distance) if sl_distance > 0 else 0
                 if shares < 1:
                     shares = 1
+
 
             results.append({
                 "Ticker": ticker,
