@@ -71,22 +71,25 @@ def run_scanner():
             avg_vol = float(vol_sma_20.iloc[-1]) if not pd.isna(vol_sma_20.iloc[-1]) else current_vol
             current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else current_price * 0.02
 
-            # 1. Filtri più severi: RSI <= 42 e Volumi Obbligatori
+                        # 1. Filtri bilanciati: RSI <= 46 e Volumi usati come conferma di qualità
             cond_trend = current_price > current_sma50
-            cond_pullback = current_rsi <= 42  # Abbassato a 42 per catturare vero ipervenduto
+            cond_pullback = current_rsi <= 46
             cond_rsi_rebound = current_rsi > prev_rsi
             cond_price_rebound = current_price > prev_price
-            cond_volumi_ok = current_vol > avg_vol  # Ora OBBLIGATORIO per comprare
+            cond_volumi_ok = current_vol > avg_vol
 
-            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound and cond_volumi_ok:
+            if cond_trend and cond_pullback and cond_rsi_rebound and cond_price_rebound:
                 signal = "🟢 COMPRA"
                 
-                # Rating basato su Sopramedia 200
-                rating_score = 3
+                # Rating basato su SMA200 e Volumi
+                rating_score = 2
                 if current_price > current_sma200:
+                    rating_score += 1
+                if cond_volumi_ok:
                     rating_score += 1
                 
                 stars = f"{rating_score}/4 ⭐"
+
 
                 # Gestione Rischio: Stop Loss allargato a 2.5x ATR
                 max_risk_amount = CAPITAL * (MAX_RISK_PCT / 100.0)
